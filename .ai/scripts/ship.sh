@@ -9,11 +9,19 @@
 #       [--draft] [--base main]
 #       -- <path> [<path>...]   # exactly what to commit (no `git add -A`)
 #
-# Steps: preflight → new branch from origin/<base> carrying the changes →
-# verify.sh → stage the listed paths → secret scan → commit → push → gh pr create.
+# Steps: preflight → verify.sh → new branch from origin/<base> carrying the
+# changes → stage the listed paths → secret scan → commit → push → gh pr create.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The base branch may not contain .ai/ yet (e.g. before this tooling is merged),
+# so switching branches can delete this very script mid-run. Re-run from a temp copy.
+if [ -z "${SHIP_ROOT:-}" ]; then
+  SHIP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  tmp="$(mktemp -d)"
+  cp "$SHIP_ROOT/.ai/scripts/ship.sh" "$tmp/ship.sh"
+  SHIP_ROOT="$SHIP_ROOT" exec bash "$tmp/ship.sh" "$@"
+fi
+ROOT="$SHIP_ROOT"
 cd "$ROOT"
 
 die() { echo "ship: $*" >&2; exit 1; }
@@ -59,6 +67,10 @@ if [ -z "$(git status --porcelain -- "${PATHS[@]}")" ]; then
   die "nothing to commit in the listed paths"
 fi
 
+# ---- verify (before switching: the base branch may not have .ai/ yet) ------
+step "Running verify.sh"
+"$ROOT/.ai/scripts/verify.sh" || die "verify.sh failed; fix it before shipping (nothing was changed)"
+
 # ---- branch from origin/<base>, carrying the working-tree changes ----------
 step "Fetching origin/$BASE"
 git fetch --quiet origin "$BASE"
@@ -86,10 +98,7 @@ if [ "$CURRENT" != "$BRANCH" ]; then
   fi
 fi
 
-# ---- verify, stage, scan, commit -------------------------------------------
-step "Running verify.sh"
-"$ROOT/.ai/scripts/verify.sh" || die "verify.sh failed; fix it before shipping (the branch $BRANCH is left in place)"
-
+# ---- stage, scan, commit ---------------------------------------------------
 step "Staging ${#PATHS[@]} path(s)"
 git reset --quiet           # start from an empty index so only the listed paths go in
 git add -- "${PATHS[@]}"
