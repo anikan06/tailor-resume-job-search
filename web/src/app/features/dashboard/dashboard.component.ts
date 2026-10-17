@@ -3,7 +3,7 @@ import { Component, OnDestroy, OnInit, computed, effect, signal } from '@angular
 import { Subscription } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { AggregatedJob, AggregationResult, LinkTailorResult } from '../../core/models';
+import { AggregatedJob, AggregationResult, LinkTailorResult, QuickTailorResult } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
 import { ResumePreviewDialogComponent } from '../../shared/resume-preview-dialog.component';
 import { companyHue, companyInitial } from '../../shared/avatar';
@@ -17,7 +17,8 @@ interface JobUiState {
 
 type JobFilter = 'all' | 'auto' | 'prefill' | 'open';
 type JobSort = 'relevance' | 'company' | 'recent';
-type DashboardView = 'link' | 'best' | 'jobs';
+type DashboardView = 'quick' | 'link' | 'best' | 'jobs';
+type ResumeFormat = 'pdf' | 'docx';
 
 /** How many of the top-scoring open roles "Best matches" shows. Scores are relative to each search, so no fixed cutoff. */
 const BEST_MATCH_LIMIT = 5;
@@ -73,6 +74,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
   linkState = signal<JobUiState>({ busy: false });
   linkResult = signal<LinkTailorResult | null>(null);
   linkPreviewOpen = signal(false);
+
+  /** "Just tailor & download" panel: a pasted job description, no link. */
+  quick = {
+    title: signal(''),
+    company: signal(''),
+    description: signal('')
+  };
+  quickFormat = signal<ResumeFormat>('pdf');
+  quickState = signal<JobUiState>({ busy: false });
+  quickResult = signal<QuickTailorResult | null>(null);
+  quickPreviewOpen = signal(false);
 
   query = signal('');
   filter = signal<JobFilter>('all');
@@ -130,7 +142,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   constructor(private api: ApiService) {
     effect(
       () => {
-        const message = this.linkState().message ?? this.posting().message;
+        const message = this.quickState().message ?? this.linkState().message ?? this.posting().message;
         if (message) this.announcement.set(message);
       },
       { allowSignalWrites: true }
@@ -283,6 +295,52 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** Tailors the resume to the pasted job description and downloads it in the chosen format. */
+  tailorQuick(): void {
+    const description = this.quick.description().trim();
+    if (!description) return;
+    this.quickResult.set(null);
+    this.quickState.set({ busy: true, tone: 'info', message: 'Tailoring your resume to this job description… this can take a minute.' });
+    this.api
+      .tailorQuick({ description, title: this.quick.title().trim() || undefined, company: this.quick.company().trim() || undefined })
+      .subscribe({
+        next: (res) => {
+          this.quickResult.set(res);
+          this.downloadQuick(this.quickFormat());
+          this.quickState.set({
+            busy: false,
+            tone: 'success',
+            message: `Resume downloaded. ATS keyword match went from ${res.ats.scoreBefore}% to ${res.ats.scoreAfter}%.`
+          });
+        },
+        error: (err) => this.quickState.set({ busy: false, tone: 'error', message: err.error?.error ?? err.message })
+      });
+  }
+
+  downloadQuick(format: ResumeFormat): void {
+    const res = this.quickResult();
+    if (!res) return;
+    const name = this.api.tailoredPdfFileName(res.company, res.title);
+    const link = document.createElement('a');
+    link.href = format === 'docx' ? this.api.tailoredDocxDownloadUrl(res.jobId, name) : this.api.tailoredPdfDownloadUrl(res.jobId, name);
+    link.click();
+  }
+
+  onQuickInput(field: keyof DashboardComponent['quick'], event: Event): void {
+    this.quick[field].set((event.target as HTMLInputElement | HTMLTextAreaElement).value);
+  }
+
+  onQuickFormat(event: Event): void {
+    this.quickFormat.set((event.target as HTMLInputElement).value as ResumeFormat);
+  }
+
+  /** Clears the panel for the next job description. */
+  resetQuick(): void {
+    for (const field of Object.values(this.quick)) field.set('');
+    this.quickResult.set(null);
+    this.quickState.set({ busy: false });
+  }
+
   downloadLinkResult(): void {
     const res = this.linkResult();
     if (res) this.downloadPdf(res.jobId, res.company, res.title);
@@ -413,9 +471,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 function readSavedView(): DashboardView {
   try {
     const saved = localStorage.getItem(VIEW_KEY);
-    if (saved === 'link' || saved === 'best' || saved === 'jobs') return saved;
+    if (saved === 'quick' || saved === 'link' || saved === 'best' || saved === 'jobs') return saved;
   } catch {
     // Storage unavailable - fall back to the default.
   }
-  return 'link';
+  return 'quick';
 }

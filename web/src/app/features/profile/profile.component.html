@@ -13,6 +13,18 @@
           <button class="btn btn--primary" (click)="fillFromResume(true)">Replace</button>
         } @else {
           <button
+            class="btn btn--primary"
+            (click)="generateAtsResume()"
+            [disabled]="(isEmpty() && !resume().uploaded) || generatingResume() || saving()"
+            [title]="isEmpty() && !resume().uploaded ? 'Add your experience below first' : 'Write a clean, ATS-friendly resume from the details on this page'"
+          >
+            @if (generatingResume()) {
+              <span class="spinner"></span> Generating&hellip;
+            } @else {
+              <app-icon name="sparkles" [size]="15" /> Generate ATS resume
+            }
+          </button>
+          <button
             class="btn"
             (click)="fillFromResume()"
             [disabled]="!resume().uploaded || fetching() || saving()"
@@ -686,3 +698,15 @@
     <ng-container *ngTemplateOutlet="formActions" />
   </form>
 </ng-template>
+
+@if (atsResume(); as res) {
+  <app-resume-preview-dialog
+    [jobId]="res.jobId"
+    [title]="res.headline ? res.name + ' · ' + res.headline : res.name"
+    heading="ATS-friendly resume"
+    [fileName]="'Resume - ' + res.name"
+    [docx]="true"
+    [version]="res.version"
+    (closed)="atsResume.set(null)"
+  />
+}

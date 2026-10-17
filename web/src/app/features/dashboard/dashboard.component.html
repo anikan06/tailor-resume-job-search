@@ -8,6 +8,13 @@
   </header>
 
   <nav class="views" aria-label="Dashboard sections">
+    <button type="button" class="card view-card" [class.active]="view() === 'quick'" [attr.aria-pressed]="view() === 'quick'" (click)="showView('quick')">
+      <span class="stat__icon"><app-icon name="sparkles" /></span>
+      <span class="view-card__text">
+        <span class="view-card__title">Just tailor &amp; download</span>
+        <span class="view-card__desc">Paste a job description, get an ATS-ready resume.</span>
+      </span>
+    </button>
     <button type="button" class="card view-card" [class.active]="view() === 'link'" [attr.aria-pressed]="view() === 'link'" (click)="showView('link')">
       <span class="stat__icon"><app-icon name="link" /></span>
       <span class="view-card__text">
@@ -32,6 +39,121 @@
   </nav>
 
   @switch (view()) {
+    @case ('quick') {
+      <section class="card link-tailor">
+        <div>
+          <h2>Just tailor &amp; download</h2>
+          <p class="link-tailor__sub">
+            Paste any job description. Your resume gets rewritten for it using ATS best practices: standard headings, the job's own
+            keywords, action-verb bullets with real results, and a clean one-column layout. Nothing is invented and nothing is applied to.
+          </p>
+        </div>
+
+        <form class="link-tailor__options" (submit)="$event.preventDefault(); tailorQuick()" aria-label="Just tailor and download">
+          <div class="field">
+            <label for="quick-title">Job title <span class="field__optional">(recommended)</span></label>
+            <input id="quick-title" placeholder="e.g. Senior Software Engineer" [value]="quick.title()" (input)="onQuickInput('title', $event)" [disabled]="quickState().busy" />
+          </div>
+          <div class="field">
+            <label for="quick-company">Company <span class="field__optional">(optional)</span></label>
+            <input id="quick-company" placeholder="e.g. Acme" [value]="quick.company()" (input)="onQuickInput('company', $event)" [disabled]="quickState().busy" />
+          </div>
+          <div class="field link-tailor__desc">
+            <label for="quick-desc">Job description</label>
+            <textarea
+              id="quick-desc"
+              rows="14"
+              required
+              aria-describedby="quick-desc-help"
+              placeholder="Paste the full job description: responsibilities, requirements, nice-to-haves…"
+              [value]="quick.description()"
+              (input)="onQuickInput('description', $event)"
+              [disabled]="quickState().busy"
+            ></textarea>
+            <p class="field__help" id="quick-desc-help">The more complete the description, the better the keyword match.</p>
+          </div>
+          <div class="quick__submit link-tailor__full">
+            <fieldset class="segmented" [disabled]="quickState().busy">
+              <legend class="sr-only">Download format</legend>
+              <label [class.active]="quickFormat() === 'pdf'">
+                <input class="sr-only" type="radio" name="quick-format" value="pdf" [checked]="quickFormat() === 'pdf'" (change)="onQuickFormat($event)" /> PDF
+              </label>
+              <label [class.active]="quickFormat() === 'docx'">
+                <input class="sr-only" type="radio" name="quick-format" value="docx" [checked]="quickFormat() === 'docx'" (change)="onQuickFormat($event)" /> Word (.docx)
+              </label>
+            </fieldset>
+            <button class="btn btn--primary" type="submit" [disabled]="quickState().busy || quick.description().trim().length < 100">
+              @if (quickState().busy) {
+                <span class="spinner"></span> Tailoring…
+              } @else {
+                <app-icon name="sparkles" [size]="15" /> Tailor &amp; Download
+              }
+            </button>
+          </div>
+        </form>
+
+        @if (quickState().message) {
+          <p class="job__status" [attr.data-tone]="quickState().tone">
+            @if (quickState().tone === 'success') {
+              <app-icon name="check" [size]="15" />
+            } @else if (quickState().tone === 'error') {
+              <app-icon name="alert" [size]="15" />
+            }
+            {{ quickState().message }}
+          </p>
+        }
+
+        @if (quickResult(); as res) {
+          <div class="link-tailor__result">
+            <div>
+              <strong>{{ res.title }}</strong>
+              <span class="link-tailor__company">{{ res.company }}</span>
+            </div>
+            <div class="link-tailor__actions">
+              <button class="btn btn--sm btn--ghost" type="button" (click)="quickPreviewOpen.set(true)"><app-icon name="file" [size]="15" /> View resume</button>
+              <button class="btn btn--sm btn--ghost" type="button" (click)="downloadQuick('pdf')"><app-icon name="download" [size]="15" /> PDF</button>
+              <button class="btn btn--sm btn--ghost" type="button" (click)="downloadQuick('docx')"><app-icon name="download" [size]="15" /> Word</button>
+              <button class="btn btn--sm" type="button" (click)="resetQuick()"><app-icon name="plus" [size]="15" /> Another job</button>
+            </div>
+          </div>
+
+          @if (res.ats.keywords.length) {
+            <div class="ats" aria-labelledby="ats-title">
+              <div class="ats__head">
+                <h3 id="ats-title">ATS keyword match</h3>
+                <div class="ats__scores">
+                  <span>Your resume <strong>{{ res.ats.scoreBefore }}%</strong></span>
+                  <span aria-hidden="true">→</span><span class="sr-only">to</span>
+                  <span>Tailored <strong class="ats__after">{{ res.ats.scoreAfter }}%</strong></span>
+                </div>
+              </div>
+              <div class="relevance" [attr.data-tone]="relevanceTone(res.ats.scoreAfter)">
+                <div class="relevance__track" aria-hidden="true"><div class="relevance__fill" [style.width.%]="res.ats.scoreAfter"></div></div>
+              </div>
+              <p class="ats__label">Found in your tailored resume ({{ res.ats.matched.length }} of {{ res.ats.keywords.length }})</p>
+              <ul class="ats__chips" aria-label="Matched keywords">
+                @for (k of res.ats.matched; track k) {
+                  <li class="badge badge--green">{{ k }}</li>
+                }
+              </ul>
+              @if (res.ats.missing.length) {
+                <p class="ats__label">Not in your resume or profile ({{ res.ats.missing.length }})</p>
+                <ul class="ats__chips" aria-label="Missing keywords">
+                  @for (k of res.ats.missing; track k) {
+                    <li class="badge badge--amber">{{ k }}</li>
+                  }
+                </ul>
+                <p class="field__help">
+                  These were left out rather than made up. If you do have any of them, add them on the
+                  <a routerLink="/profile">Profile page</a> and tailor again.
+                </p>
+              }
+            </div>
+          }
+        }
+      </section>
+    }
+
     @case ('link') {
       <section class="card link-tailor">
         <div>
@@ -443,6 +565,10 @@
 
 @if (previewJob(); as job) {
   <app-resume-preview-dialog [jobId]="job.id" [title]="job.title" [company]="job.company" (closed)="previewJob.set(null)" />
+}
+
+@if (quickPreviewOpen() && quickResult(); as res) {
+  <app-resume-preview-dialog [jobId]="res.jobId" [title]="res.title" [company]="res.company" (closed)="quickPreviewOpen.set(false)" />
 }
 
 @if (linkPreviewOpen() && linkResult(); as res) {

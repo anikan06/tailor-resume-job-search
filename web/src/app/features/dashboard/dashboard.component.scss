@@ -345,11 +345,122 @@
 
 .views {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
 
-  @media (max-width: 760px) {
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 560px) {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Just tailor & download ---- */
+.field__optional {
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.quick__submit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+
+  fieldset.segmented {
+    margin: 0;
+    min-width: 0;
+  }
+
+  // Radio labels styled like the shared segmented-control buttons.
+  .segmented label {
+    color: var(--text-2);
+    font-size: 0.86rem;
+    font-weight: 500;
+    min-height: 34px;
+    padding: 0.38rem 0.8rem;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &.active {
+      background: var(--surface);
+      color: var(--accent-text);
+      font-weight: 600;
+      box-shadow: var(--shadow-sm), 0 0 0 1px var(--border);
+    }
+
+    &:has(input:focus-visible) {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.ats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+
+  h3 {
+    margin: 0;
+    font-size: 0.98rem;
+  }
+}
+
+.ats__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ats__scores {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  color: var(--text-2);
+
+  strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ats__after {
+    color: var(--success);
+  }
+}
+
+.ats__label {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.ats__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  .badge {
+    white-space: normal;
   }
 }
 

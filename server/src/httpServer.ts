@@ -13,13 +13,14 @@ import { extractResumeText } from "./resume/parse.js";
 import { extractProfileFromResume, extractHeuristically, withCareerSuggestions } from "./resume/extractProfile.js";
 import { importFromGitHub, importFromLinkedIn } from "./resume/importProfile.js";
 import { generateResumePdf } from "./resume/pdf.js";
+import { generateResumeDocx } from "./resume/generate.js";
 import { getState, setState } from "./state.js";
 import { aggregateJobs, readCachedAggregation } from "./jobsStore.js";
 import { fetchJobDescriptionText, fetchJobPosting, readJobDescription } from "./jobDescription.js";
 import { guessJobDetails } from "./jobLink.js";
 import { extractJobSections } from "./jobSections.js";
 import { platformForUrl } from "./platforms/google.js";
-import { tailorResumeWithAI } from "./aiTailor.js";
+import { atsKeywordReport, generateAtsResumeWithAI, tailorResumeWithAI } from "./aiTailor.js";
 import { AI_PROVIDERS, activeProvider, isAiConfigured } from "./llm.js";
 import { applyToAtsJob } from "./platforms/ats.js";
 import { prefillLinkedInApplication } from "./platforms/linkedin.js";
@@ -217,6 +218,36 @@ app.post("/api/profile/career/from-resume", async (req: Request, res: Response) 
   }
 });
 
+/** File id (in TAILORED_DIR) of the Profile page's general ATS resume - there's only ever one. */
+const PROFILE_RESUME_ID = "ats-profile";
+
+/**
+ * Profile page → "Generate ATS resume": writes a general, job-independent ATS-friendly resume
+ * from the Profile details (and the uploaded resume, if any), as both PDF and Word.
+ */
+app.post("/api/profile/ats-resume", async (_req: Request, res: Response) => {
+  const profile = loadProfile();
+  const { resumeText } = getState();
+  if (isCareerEmpty(profile.career) && !resumeText) {
+    return res.status(400).json({ error: "Add your experience on this page (or upload a resume in Settings) first." });
+  }
+  try {
+    const content = await generateAtsResumeWithAI(profile, resumeText ?? "");
+    const pdfPath = tailoredPdfPath(PROFILE_RESUME_ID);
+    await writeTailoredPdf(content, pdfPath, profile);
+    await generateResumeDocx(content, pdfPath.replace(/\.pdf$/, ".docx"));
+    res.json({
+      jobId: PROFILE_RESUME_ID,
+      name: content.headerTitle || profile.personal?.full_name || "Resume",
+      headline: content.headline ?? "",
+      pdfUrl: `/api/tailored/${PROFILE_RESUME_ID}.pdf`,
+      docxUrl: `/api/tailored/${PROFILE_RESUME_ID}.docx`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // ---- profile import (LinkedIn / GitHub) ---------------------------------
 
 /** Fetches profile details from LinkedIn or GitHub for Settings to prefill; nothing is saved here. */
@@ -372,18 +403,54 @@ app.post("/api/tailor-from-link", async (req: Request, res: Response) => {
 });
 
 /**
- * Serves a tailored PDF inline (for the in-app preview) or, with ?download=1,
- * as an attachment named by ?name= instead of the job-id hash.
+ * "Just tailor & download": tailors the resume to a pasted job description - no link, no
+ * search, nothing recorded in History - and writes both a PDF and a Word copy. Also returns
+ * how many of the JD's keywords the resume covered before and after, as an ATS would see it.
+ */
+app.post("/api/tailor-quick", async (req: Request, res: Response) => {
+  const field = (name: string) => (typeof req.body?.[name] === "string" ? (req.body[name] as string).trim() : "");
+  const description = field("description");
+  const title = field("title") || "Target role";
+  const company = field("company") || "Company";
+  if (description.length < 100) return res.status(400).json({ error: "Paste the full job description (at least a few lines) first." });
+  const { resumeText } = getState();
+  if (!resumeText) return res.status(400).json({ error: "No resume uploaded yet - upload one in Settings first." });
+
+  try {
+    const jobId = createHash("sha256").update(`quick\n${title}\n${company}\n${description}`).digest("hex").slice(0, 16);
+    const profile = loadProfile();
+    const content = await tailorResumeWithAI(resumeText, title, company, description, profile, jobId);
+    const pdfPath = tailoredPdfPath(jobId);
+    await writeTailoredPdf(content, pdfPath, profile);
+    await generateResumeDocx(content, pdfPath.replace(/\.pdf$/, ".docx"));
+    res.json({
+      jobId,
+      title,
+      company,
+      pdfUrl: `/api/tailored/${jobId}.pdf`,
+      docxUrl: `/api/tailored/${jobId}.docx`,
+      ats: atsKeywordReport(content, resumeText),
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * Serves a tailored PDF inline (for the in-app preview) or, with ?download=1 (always for
+ * a .docx), as an attachment named by ?name= instead of the job-id hash.
  */
 app.get("/api/tailored/:fileName", (req: Request, res: Response) => {
   const fileName = basename(req.params.fileName);
-  if (extname(fileName) !== ".pdf") return res.status(404).end();
+  const ext = extname(fileName);
+  if (ext !== ".pdf" && ext !== ".docx") return res.status(404).end();
   const path = join(TAILORED_DIR, fileName);
   if (!existsSync(path)) return res.status(404).end();
 
-  if (req.query.download) {
+  // Word copies (from "Just tailor & download") are only ever downloaded.
+  if (req.query.download || ext === ".docx") {
     const requested = typeof req.query.name === "string" ? req.query.name.replace(/[^\w .()-]+/g, "_").slice(0, 120) : "";
-    return res.download(path, requested ? `${requested.replace(/\.pdf$/i, "")}.pdf` : fileName);
+    return res.download(path, requested ? `${requested.replace(/\.(pdf|docx)$/i, "")}${ext}` : fileName);
   }
   res.type("application/pdf").sendFile(path);
 });

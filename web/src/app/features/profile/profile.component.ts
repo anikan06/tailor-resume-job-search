@@ -4,10 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { CareerProfile, Profile, ResumeInfo } from '../../core/models';
+import { CareerProfile, Profile, ProfileResumeResult, ResumeInfo } from '../../core/models';
 import { ImportSource } from '../settings/sections/personal-section.component';
 import { ChipInputComponent } from '../../shared/chip-input.component';
 import { IconComponent } from '../../shared/icon.component';
+import { ResumePreviewDialogComponent } from '../../shared/resume-preview-dialog.component';
 
 type ListKey = 'experience' | 'education' | 'projects' | 'certifications' | 'languages' | 'additional_sections';
 type EditKey = ListKey | 'about';
@@ -124,7 +125,7 @@ function currentMonth(): number {
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, IconComponent, ChipInputComponent],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, IconComponent, ChipInputComponent, ResumePreviewDialogComponent],
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss'
 })
@@ -142,6 +143,9 @@ export class ProfileComponent implements OnInit {
   fetching = signal(false);
   confirmingReplace = signal(false);
   importing = signal<ImportSource | null>(null);
+  /** "Generate ATS resume": in progress, and the result shown in the preview dialog. */
+  generatingResume = signal(false);
+  atsResume = signal<(ProfileResumeResult & { version: number }) | null>(null);
   /** Source whose profile link we're asking for, because none is saved in Settings. */
   askingLinkFor = signal<ImportSource | null>(null);
   importLink = '';
@@ -332,6 +336,24 @@ export class ProfileComponent implements OnInit {
       error: (err) => {
         this.fetching.set(false);
         this.flash({ text: `Couldn't read your resume: ${err.error?.error ?? err.message}`, tone: 'error' });
+      }
+    });
+  }
+
+  // ---- ATS resume ---------------------------------------------------------------
+
+  /** Writes a fresh ATS-friendly resume from the details on this page and opens it for preview/download. */
+  generateAtsResume(): void {
+    this.cancelEdit();
+    this.generatingResume.set(true);
+    this.api.generateAtsResume().subscribe({
+      next: (res) => {
+        this.generatingResume.set(false);
+        this.atsResume.set({ ...res, version: Date.now() });
+      },
+      error: (err) => {
+        this.generatingResume.set(false);
+        this.flash({ text: `Couldn't generate the resume: ${err.error?.error ?? err.message}`, tone: 'error' });
       }
     });
   }

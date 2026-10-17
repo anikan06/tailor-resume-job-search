@@ -279,6 +279,41 @@ export interface LinkTailorResult {
   pdfUrl: string;
 }
 
+/** "Just tailor & download": a pasted job description, no link. */
+export interface QuickTailorRequest {
+  description: string;
+  title?: string;
+  company?: string;
+}
+
+/** How many of the job description's keywords the resume contains, as an ATS keyword filter would check. */
+export interface AtsReport {
+  keywords: string[];
+  matched: string[];
+  /** Not in the candidate's resume or profile, so left out rather than invented. */
+  missing: string[];
+  scoreBefore: number;
+  scoreAfter: number;
+}
+
+export interface QuickTailorResult {
+  jobId: string;
+  title: string;
+  company: string;
+  pdfUrl: string;
+  docxUrl: string;
+  ats: AtsReport;
+}
+
+/** The Profile page's general (not job-specific) ATS resume. */
+export interface ProfileResumeResult {
+  jobId: string;
+  name: string;
+  headline: string;
+  pdfUrl: string;
+  docxUrl: string;
+}
+
 /** What the server read from a pasted job link, shown for the user to check before tailoring. */
 export interface JobPostingPreview {
   platform: Platform;

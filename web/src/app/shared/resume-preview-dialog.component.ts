@@ -3,7 +3,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { ApiService } from '../core/api.service';
 import { IconComponent } from './icon.component';
 
-/** Modal showing a job's tailored resume PDF inline, with a download button. */
+/** Modal showing a tailored resume PDF inline, with download buttons (Word too, when one was made). */
 @Component({
   selector: 'app-resume-preview-dialog',
   standalone: true,
@@ -14,9 +14,14 @@ import { IconComponent } from './icon.component';
       <header class="dialog__head">
         <span class="dialog__icon"><app-icon name="file" [size]="18" /></span>
         <div class="dialog__title">
-          <strong id="resume-dialog-title">Tailored resume</strong>
-          <span>{{ title() }} &middot; {{ company() }}</span>
+          <strong id="resume-dialog-title">{{ heading() }}</strong>
+          <span>{{ title() }}@if (company()) { &middot; {{ company() }}}</span>
         </div>
+        @if (docx()) {
+          <a class="btn btn--sm" [href]="docxDownloadUrl()" download>
+            <app-icon name="download" [size]="15" /> Word
+          </a>
+        }
         <a class="btn btn--primary btn--sm" [href]="downloadUrl()" download>
           <app-icon name="download" [size]="15" /> Download PDF
         </a>
@@ -96,16 +101,25 @@ import { IconComponent } from './icon.component';
 export class ResumePreviewDialogComponent implements AfterViewInit {
   jobId = input.required<string>();
   title = input.required<string>();
-  company = input.required<string>();
+  company = input<string>('');
+  heading = input('Tailored resume');
+  /** Download file name; defaults to "Resume - company - title". */
+  fileName = input<string>('');
+  /** Also offer the Word (.docx) copy. */
+  docx = input(false);
+  /** Changes whenever the same file id is regenerated, so the frame doesn't show a cached copy. */
+  version = input<string | number>('');
   closed = output<void>();
 
   private dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   // Our own API origin, so it's safe to trust as a frame source.
-  previewUrl = computed(() => this.sanitizer.bypassSecurityTrustResourceUrl(this.api.tailoredPdfUrl(this.jobId())));
-  downloadUrl = computed(() =>
-    this.api.tailoredPdfDownloadUrl(this.jobId(), this.api.tailoredPdfFileName(this.company(), this.title()))
+  previewUrl = computed(() =>
+    this.sanitizer.bypassSecurityTrustResourceUrl(this.api.tailoredPdfUrl(this.jobId()) + (this.version() ? `?v=${this.version()}` : ''))
   );
+  private downloadName = computed(() => this.fileName() || this.api.tailoredPdfFileName(this.company(), this.title()));
+  downloadUrl = computed(() => this.api.tailoredPdfDownloadUrl(this.jobId(), this.downloadName()));
+  docxDownloadUrl = computed(() => this.api.tailoredDocxDownloadUrl(this.jobId(), this.downloadName()));
 
   constructor(
     private api: ApiService,

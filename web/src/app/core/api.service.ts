@@ -11,6 +11,9 @@ import {
   LinkTailorRequest,
   LinkTailorResult,
   Profile,
+  ProfileResumeResult,
+  QuickTailorRequest,
+  QuickTailorResult,
   ResumeExtraction,
   ResumeInfo,
   UsageSummary
@@ -38,6 +41,11 @@ export class ApiService {
   /** Experience, education etc. read from the uploaded resume (not saved). `refresh` re-reads it. */
   getCareerFromResume(refresh = false): Observable<{ career: CareerProfile; source: 'ai' | 'heuristic' }> {
     return this.http.post<{ career: CareerProfile; source: 'ai' | 'heuristic' }>(`${BASE}/profile/career/from-resume`, { refresh });
+  }
+
+  /** Writes a general ATS-friendly resume (PDF + Word) from the Profile page's details. */
+  generateAtsResume(): Observable<ProfileResumeResult> {
+    return this.http.post<ProfileResumeResult>(`${BASE}/profile/ats-resume`, {});
   }
 
   getResume(): Observable<ResumeInfo> {
@@ -84,6 +92,16 @@ export class ApiService {
   /** Tailors the resume for any job posting link (Workday, a careers page, ...) for the user to apply with. */
   tailorFromLink(request: LinkTailorRequest): Observable<LinkTailorResult> {
     return this.http.post<LinkTailorResult>(`${BASE}/tailor-from-link`, request);
+  }
+
+  /** Tailors the resume to a pasted job description and makes PDF + Word copies, with an ATS keyword report. */
+  tailorQuick(request: QuickTailorRequest): Observable<QuickTailorResult> {
+    return this.http.post<QuickTailorResult>(`${BASE}/tailor-quick`, request);
+  }
+
+  /** Download URL for the Word copy made by `tailorQuick`. */
+  tailoredDocxDownloadUrl(jobId: string, fileName: string): string {
+    return `${BASE}/tailored/${encodeURIComponent(jobId)}.docx?download=1&name=${encodeURIComponent(fileName)}`;
   }
 
   /** Inline URL for previewing a job's tailored PDF. */
