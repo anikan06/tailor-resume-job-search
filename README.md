@@ -16,6 +16,29 @@ Both run locally on your machine. Nothing is hosted for you, no account
 required, no data leaves your machine except the one call per tailor to the AI
 provider you choose, using your own key (or none at all with local Ollama).
 
+## Quick start for friends
+
+You need [Node.js 22.13 or newer](https://nodejs.org) and git.
+
+```bash
+git clone https://github.com/anikan06/tailor-resume-job-search.git
+cd tailor-resume-job-search
+./start.sh
+```
+
+The first run installs dependencies, which takes a few minutes. Then open
+http://localhost:4200 and:
+
+1. **Settings** — enter your details and upload your resume.
+2. **Settings → AI tailoring** — pick a provider. Google Gemini has a free key
+   at aistudio.google.com/apikey; Ollama runs locally for free.
+3. **Dashboard** — search for jobs and press **Apply** (or **Tailor &
+   Download** if you'd rather apply by hand).
+
+Everything you enter stays on your own machine. To update later, run
+`git pull` and then `./start.sh` again. See the sections below for LinkedIn,
+Naukri and Indeed setup and the full details.
+
 ## Apply policy (read this first)
 
 | Platform | Dashboard search | Pressing "Apply" |
