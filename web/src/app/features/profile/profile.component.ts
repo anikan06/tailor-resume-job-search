@@ -152,7 +152,7 @@ export class ProfileComponent implements OnInit {
 
   readonly proficiencies = PROFICIENCIES;
   readonly importSources = [
-    { id: 'linkedin', label: 'LinkedIn', icon: 'link', title: 'Adds experience, education and skills from your LinkedIn profile, read through your connected Chrome' },
+    { id: 'linkedin', label: 'LinkedIn', icon: 'link', title: 'Opens a small LinkedIn window - sign in if asked - and adds your experience, education, skills and more' },
     { id: 'github', label: 'GitHub', icon: 'code', title: 'Adds your top repositories as projects and their languages as skills' }
   ] as const;
   readonly sectionHeadings = SECTION_HEADINGS;
@@ -338,12 +338,18 @@ export class ProfileComponent implements OnInit {
 
   // ---- LinkedIn / GitHub import -----------------------------------------------
 
-  /** Imports using the link saved in Settings; asks for one first if there isn't any. */
+  /**
+   * LinkedIn opens a small sign-in window and reads whoever signs in there, so it needs no link.
+   * GitHub uses the link saved in Settings, asking for one first if there isn't any.
+   */
   startImport(source: ImportSource): void {
-    const saved = source === 'linkedin' ? this.personal().linkedin_url : this.personal().github_url;
-    // LinkedIn can import with no link: it opens the signed-in user's own profile.
-    if (saved || source === 'linkedin') {
-      this.runImport(source, saved ?? '');
+    if (source === 'linkedin') {
+      this.runImport(source, '');
+      return;
+    }
+    const saved = this.personal().github_url;
+    if (saved) {
+      this.runImport(source, saved);
     } else {
       this.importLink = '';
       this.askingLinkFor.set(source);

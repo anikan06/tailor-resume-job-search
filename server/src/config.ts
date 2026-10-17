@@ -35,7 +35,7 @@ export function loadProfile(): Profile {
       const parsed = parseYaml(raw) as Partial<Profile>;
       return mergeWithDefaults(parsed);
     } catch (err) {
-      console.error(`[job-search-agent] Failed to parse profile at ${path}:`, err);
+      console.error(`[aahvya-job-aggregator] Failed to parse profile at ${path}:`, err);
     }
   }
   return DEFAULT_PROFILE;

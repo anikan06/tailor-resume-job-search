@@ -1,6 +1,6 @@
-# job-search-agent/server
+# aahvya-job-aggregator/server
 
-The engine behind job-search-agent. This folder serves two separate front
+The engine behind aahvya-job-aggregator. This folder serves two separate front
 ends off the same core modules — pick whichever fits how you work:
 
 1. **HTTP API**, for the Angular app in `../web` — see the root
@@ -73,11 +73,11 @@ Register it in `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "job-search-agent": {
+    "aahvya-job-aggregator": {
       "command": "node",
-      "args": ["/absolute/path/to/job-search-agent/server/dist/index.js"],
+      "args": ["/absolute/path/to/aahvya-job-aggregator/server/dist/index.js"],
       "env": {
-        "JOB_AGENT_PROFILE": "/absolute/path/to/job-search-agent/server/config/profile.yaml"
+        "JOB_AGENT_PROFILE": "/absolute/path/to/aahvya-job-aggregator/server/config/profile.yaml"
       }
     }
   }
@@ -87,7 +87,7 @@ Register it in `claude_desktop_config.json`:
 or for Claude Code:
 
 ```bash
-claude mcp add job-search-agent -- node /absolute/path/to/job-search-agent/server/dist/index.js
+claude mcp add aahvya-job-aggregator -- node /absolute/path/to/aahvya-job-aggregator/server/dist/index.js
 ```
 
 ### MCP tools exposed

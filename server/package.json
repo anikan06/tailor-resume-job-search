@@ -1,11 +1,11 @@
 {
-  "name": "job-search-agent-server",
+  "name": "aahvya-job-aggregator-server",
   "version": "0.2.0",
-  "description": "Resume-agnostic job search/apply engine. Exposes both an MCP server (for Claude Desktop/Code) and an HTTP API (for the job-search-agent Angular app).",
+  "description": "Resume-agnostic job search/apply engine. Exposes both an MCP server (for Claude Desktop/Code) and an HTTP API (for the aahvya-job-aggregator Angular app).",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "job-search-agent": "dist/index.js"
+    "aahvya-job-aggregator": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p .",
@@ -15,7 +15,7 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=18.17"
+    "node": ">=22.13"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

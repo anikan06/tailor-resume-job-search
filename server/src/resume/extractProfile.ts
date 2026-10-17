@@ -43,7 +43,7 @@ export async function extractProfileFromResume(
       source: "ai",
     };
   } catch (err) {
-    console.error("[job-search-agent] AI resume extraction failed, using heuristics:", (err as Error).message);
+    console.error("[aahvya-job-aggregator] AI resume extraction failed, using heuristics:", (err as Error).message);
     return heuristic;
   }
 }

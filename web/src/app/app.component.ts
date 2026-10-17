@@ -13,7 +13,7 @@ const THEME_KEY = 'jsa-theme';
   styleUrl: './app.component.scss'
 })
 export class AppComponent {
-  title = 'job-search-agent';
+  title = 'aahvya-job-aggregator';
 
   nav: { path: string; label: string; icon: IconName }[] = [
     { path: '/dashboard', label: 'Dashboard', icon: 'grid' },

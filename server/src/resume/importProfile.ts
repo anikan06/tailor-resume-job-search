@@ -1,4 +1,5 @@
-import { newPage } from "../browser.js";
+import type { Page } from "playwright";
+import { openPopupWindow } from "../browser.js";
 import type { Profile, Project } from "../types.js";
 import { extractProfileFromResume, type ResumeExtraction } from "./extractProfile.js";
 
@@ -72,57 +73,138 @@ export async function importFromGitHub(urlOrUsername: string): Promise<ResumeExt
   };
 }
 
+const LINKEDIN_ME = "https://www.linkedin.com/in/me/";
+/** How long the sign-in window waits for the user before giving up. */
+const SIGN_IN_TIMEOUT_MS = 4 * 60_000;
+/** LinkedIn pages a signed-out visitor is sent to. */
+const SIGNED_OUT_RE = /linkedin\.com\/(?:$|\?|login|authwall|checkpoint|uas|signup|signin|reg)/i;
+
 /**
- * Reads a LinkedIn profile through the user's own logged-in Chrome (see browser.ts) -
- * LinkedIn has no public profile API and shows nothing useful to logged-out visitors.
- * With no URL it opens /in/me/, which LinkedIn redirects to the signed-in user's profile.
- * The page text is then run through the same extractor used for resumes.
+ * Each profile's full lists live on /details/<slug>/ pages - the profile itself only
+ * shows the first few. Headings are named so the resume reader recognises them.
+ */
+const DETAIL_SECTIONS: [slug: string, heading: string][] = [
+  ["experience", "Experience"],
+  ["education", "Education"],
+  ["skills", "Skills"],
+  ["certifications", "Licenses & Certifications"],
+  ["projects", "Projects"],
+  ["languages", "Languages"],
+  ["honors", "Honors & Awards"],
+  ["volunteering-experiences", "Volunteering"],
+];
+
+/**
+ * Reads a LinkedIn profile through the app's own Chrome - LinkedIn has no public profile
+ * API and shows nothing useful to logged-out visitors. A small window opens on the
+ * profile; if LinkedIn asks the user to sign in, they do so there (the server never
+ * sees their password) and the read carries on as soon as they're in.
+ * With no URL it reads /in/me/, which LinkedIn redirects to the signed-in user's profile.
+ * The text is then run through the same extractor used for resumes.
  */
 export async function importFromLinkedIn(url: string | undefined, profile: Profile): Promise<ResumeExtraction> {
-  const target = url?.trim() ? linkedinProfileUrl(url) : "https://www.linkedin.com/in/me/";
+  const target = url?.trim() ? linkedinProfileUrl(url) : LINKEDIN_ME;
   if (!target) throw new Error("Enter a LinkedIn profile URL (https://www.linkedin.com/in/<handle>).");
 
-  const page = await newPage();
+  const page = await openPopupWindow(target);
   try {
-    await page.goto(target, { waitUntil: "domcontentloaded", timeout: 30000 });
-    if (/\/(login|authwall|checkpoint)/.test(page.url())) {
-      throw new Error("LinkedIn asked to sign in - log in to LinkedIn in the connected Chrome window, then retry.");
-    }
-    await page.waitForSelector("main h1", { timeout: 15000 });
+    await waitForSignedInProfile(page, target);
+    const profileUrl = linkedinProfileUrl(page.url()) ?? target;
 
-    // Experience/skills sections render lazily as you scroll.
-    for (let i = 0; i < 6; i++) {
+    // The About section renders lazily as you scroll.
+    for (let i = 0; i < 3; i++) {
       await page.mouse.wheel(0, 1500);
       await page.waitForTimeout(400);
     }
-
-    const { name, headline, location, text } = await page.evaluate(() => {
+    const top = await page.evaluate(() => {
       const main = document.querySelector("main");
-      const top = main?.querySelector("section");
-      const pick = (sel: string) => top?.querySelector<HTMLElement>(sel)?.innerText.trim() || undefined;
+      const card = main?.querySelector("section");
+      const pick = (sel: string) => card?.querySelector<HTMLElement>(sel)?.innerText.trim() || undefined;
       return {
         name: main?.querySelector<HTMLElement>("h1")?.innerText.trim(),
         headline: pick(".text-body-medium"),
         location: pick(".text-body-small.inline"),
+        about: document.querySelector("#about")?.closest("section")?.innerText.trim(),
         text: main?.innerText ?? "",
       };
     });
-    const profileUrl = linkedinProfileUrl(page.url()) ?? target;
 
-    // Put the name and headline first so the resume heuristics read them as a header.
-    const extracted = await extractProfileFromResume([name, headline, location, text].filter(Boolean).join("\n"), profile, "import_profile");
+    const contact = await readPage(page, `${profileUrl}overlay/contact-info/`, "[role=dialog], .artdeco-modal");
+    const details: string[] = [];
+    for (const [slug, heading] of DETAIL_SECTIONS) {
+      const text = await readPage(page, `${profileUrl}details/${slug}/`, "main", "/details/");
+      // Drop LinkedIn's own heading line; ours is the one the resume reader knows.
+      if (text) details.push(`${heading}\n${text.split("\n").slice(1).join("\n").slice(0, 3000)}`);
+    }
+
+    const text = [
+      top.name,
+      top.headline,
+      top.location,
+      contact?.replace(/^Contact info\s*/i, ""),
+      top.about?.replace(/^About\s*/i, "Summary\n"),
+      // The detail pages hold everything the profile page does and more; fall back if LinkedIn changed them.
+      ...(details.length ? details : [top.text]),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const extracted = await extractProfileFromResume(text, profile, "import_profile");
     return {
       ...extracted,
       personal: stripEmpty({
         ...extracted.personal,
-        full_name: name || extracted.personal.full_name,
-        location: location || extracted.personal.location,
+        full_name: top.name || extracted.personal.full_name,
+        location: top.location || extracted.personal.location,
         linkedin_url: profileUrl,
       }),
-      suggestedRoles: headline ? dedupe([headline.split(/\s*[|@•]\s*/)[0], ...extracted.suggestedRoles]) : extracted.suggestedRoles,
+      suggestedRoles: top.headline ? dedupe([top.headline.split(/\s*[|@•]\s*/)[0], ...extracted.suggestedRoles]) : extracted.suggestedRoles,
+      career: extracted.career && { ...extracted.career, headline: extracted.career.headline ?? top.headline },
     };
   } finally {
     await page.close().catch(() => undefined);
+  }
+}
+
+/** Waits until the window shows a signed-in profile page, steering it back there after sign-in. */
+async function waitForSignedInProfile(page: Page, target: string): Promise<void> {
+  const deadline = Date.now() + SIGN_IN_TIMEOUT_MS;
+  let lastRedirect = 0;
+  while (Date.now() < deadline) {
+    if (page.isClosed()) throw new Error("The LinkedIn window was closed before your profile could be read.");
+    const current = page.url();
+    if (!SIGNED_OUT_RE.test(current)) {
+      // The global nav only shows when signed in; a public profile view has no such bar.
+      const signedIn = await page.$("#global-nav, header.global-nav").catch(() => null);
+      const onProfile = /linkedin\.com\/in\/(?!me\/?(?:[?#]|$))[^/?#]+/i.test(current);
+      if (signedIn && onProfile && (await page.$("main h1").catch(() => null))) return;
+      // Signed in but somewhere else (LinkedIn usually lands on the feed after sign-in).
+      if (signedIn && !onProfile && Date.now() - lastRedirect > 5000) {
+        lastRedirect = Date.now();
+        await page.goto(target, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => undefined);
+        continue;
+      }
+    }
+    await page.waitForTimeout(1000).catch(() => undefined);
+  }
+  throw new Error("Timed out waiting for LinkedIn sign-in - try again and sign in within 4 minutes.");
+}
+
+/** Opens a profile sub-page and returns its text, or undefined if LinkedIn doesn't have it for this profile. */
+async function readPage(page: Page, url: string, selector: string, mustStayOn?: string): Promise<string | undefined> {
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    if (mustStayOn && !page.url().includes(mustStayOn)) return undefined;
+    await page.waitForSelector(selector, { timeout: 8000 });
+    // Long lists load more items as you scroll.
+    for (let i = 0; i < 4; i++) {
+      await page.mouse.wheel(0, 2000);
+      await page.waitForTimeout(350);
+    }
+    const text = await page.locator(selector).first().innerText();
+    return text.replace(/\n{3,}/g, "\n\n").trim() || undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -130,7 +212,7 @@ export async function importFromLinkedIn(url: string | undefined, profile: Profi
 
 async function githubGet(path: string): Promise<unknown> {
   const res = await fetch(`https://api.github.com${path}`, {
-    headers: { Accept: "application/vnd.github+json", "User-Agent": "job-search-agent" },
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "aahvya-job-aggregator" },
   });
   if (res.status === 404) throw new Error("GitHub user not found.");
   if (res.status === 403) throw new Error("GitHub rate limit hit - try again in a few minutes.");

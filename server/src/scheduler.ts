@@ -22,16 +22,16 @@ export function applySchedule(profile: Profile): { running: boolean; cron?: stri
   activeTask = cron.schedule(expression, async () => {
     const { resumeText } = getState();
     if (!resumeText) {
-      console.error("[job-search-agent] Scheduled aggregation skipped: no resume uploaded yet.");
+      console.error("[aahvya-job-aggregator] Scheduled aggregation skipped: no resume uploaded yet.");
       return;
     }
     try {
       const result = await aggregateJobs(profile, resumeText);
       console.error(
-        `[job-search-agent] Scheduled aggregation at ${result.aggregatedAt}: ${result.jobs.length} jobs, ${result.errors.length} source errors.`
+        `[aahvya-job-aggregator] Scheduled aggregation at ${result.aggregatedAt}: ${result.jobs.length} jobs, ${result.errors.length} source errors.`
       );
     } catch (err) {
-      console.error("[job-search-agent] Scheduled aggregation failed:", err);
+      console.error("[aahvya-job-aggregator] Scheduled aggregation failed:", err);
     }
   });
 

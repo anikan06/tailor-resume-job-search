@@ -59,6 +59,15 @@
     </form>
   }
 
+  @if (importing() === 'linkedin') {
+    <div class="toast" role="status" data-tone="success">
+      <span class="spinner"></span>
+      <span class="toast__text">
+        A LinkedIn window has opened. Sign in there if it asks; your profile is read as soon as you're in, and the window closes when it's done.
+      </span>
+    </div>
+  }
+
   @if (toast(); as t) {
     <div class="toast" role="status" [attr.data-tone]="t.tone">
       <app-icon [name]="t.tone === 'success' ? 'check' : 'alert'" [size]="16" />

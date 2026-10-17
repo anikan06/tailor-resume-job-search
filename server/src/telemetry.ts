@@ -1,9 +1,7 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
 import type { AiProvider } from "./types.js";
+import { getDb } from "./db.js";
 
-/** Append-only log of every LLM call (one JSON object per line), so token spend can be totalled later. */
-const USAGE_PATH = process.env.JOB_AGENT_USAGE ?? new URL("../data/llm-usage.jsonl", import.meta.url).pathname;
+/* Every LLM call is logged as a row in the llm_usage table, so token spend can be totalled later. */
 
 /** What an LLM call was made for. */
 export type LlmActivity = "tailor_resume" | "extract_resume" | "import_profile";
@@ -105,30 +103,29 @@ export interface UsageSummary {
 
 export function recordLlmUsage(record: LlmUsageRecord): void {
   try {
-    mkdirSync(dirname(USAGE_PATH), { recursive: true });
-    appendFileSync(USAGE_PATH, JSON.stringify(record) + "\n", "utf-8");
+    getDb()
+      .prepare("INSERT INTO llm_usage (at, provider, model, activity, job_id, data) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(record.at, record.provider, record.model, record.activity, record.jobId ?? null, JSON.stringify(record));
   } catch (err) {
     // Telemetry must never break the call it's measuring.
-    console.error(`[job-search-agent] couldn't write LLM usage: ${(err as Error).message}`);
+    console.error(`[aahvya-job-aggregator] couldn't write LLM usage: ${(err as Error).message}`);
   }
   console.error(
-    `[job-search-agent] llm ${record.activity} ${record.provider}/${record.model} ` +
+    `[aahvya-job-aggregator] llm ${record.activity} ${record.provider}/${record.model} ` +
       `in=${record.inputTokens} out=${record.outputTokens} ${record.durationMs}ms${record.ok ? "" : " FAILED"}`
   );
 }
 
+/** All logged calls, oldest first. */
 export function readLlmUsage(): LlmUsageRecord[] {
-  if (!existsSync(USAGE_PATH)) return [];
-  return readFileSync(USAGE_PATH, "utf-8")
-    .split("\n")
-    .flatMap((line) => {
-      if (!line.trim()) return [];
-      try {
-        return [JSON.parse(line) as LlmUsageRecord];
-      } catch {
-        return [];
-      }
-    });
+  const rows = getDb().prepare("SELECT data FROM llm_usage ORDER BY seq").all() as Array<{ data: string }>;
+  return rows.flatMap((row) => {
+    try {
+      return [JSON.parse(row.data) as LlmUsageRecord];
+    } catch {
+      return [];
+    }
+  });
 }
 
 function emptyTotals(): UsageTotals {

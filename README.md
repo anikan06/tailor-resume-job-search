@@ -1,4 +1,4 @@
-# job-search-agent
+# aahvya-job-aggregator
 
 A self-hosted job-search app: add your details and a resume once, see
 matching jobs aggregated on one dashboard, and press **Apply** to have it
@@ -123,7 +123,7 @@ you want it to survive you closing the terminal.
 - **Resume/role agnostic** — every API call takes a resume and search
   criteria from `config/profile.yaml`, not anything hardcoded. Anyone can
   point this at their own resume.
-- **Local dedupe tracker** (`server/data/applications.json`) — the same job
+- **Local dedupe tracker** (`applications` table in `server/data/app.db`, SQLite) — the same job
   URL is never applied to twice.
 - The original MCP server (`server/src/index.ts`, for using these same tools
   from Claude Desktop/Code instead of the Angular app) still works — see

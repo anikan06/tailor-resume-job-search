@@ -177,7 +177,7 @@ function zodToJsonSchema(schema: z.ZodTypeAny): any {
 // ---- server -------------------------------------------------------------
 
 const server = new Server(
-  { name: "job-search-agent", version: "0.1.0" },
+  { name: "aahvya-job-aggregator", version: "0.1.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -285,10 +285,10 @@ async function dispatch(name: string, args: Record<string, any>): Promise<unknow
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[job-search-agent] MCP server running on stdio");
+  console.error("[aahvya-job-aggregator] MCP server running on stdio");
 }
 
 main().catch((err) => {
-  console.error("[job-search-agent] fatal error:", err);
+  console.error("[aahvya-job-aggregator] fatal error:", err);
   process.exit(1);
 });

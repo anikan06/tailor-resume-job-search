@@ -1,14 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { dirname } from "node:path";
 import type { ApplicationRecord } from "./types.js";
-
-const DEFAULT_STORE = new URL("../data/applications.json", import.meta.url).pathname;
-
-function storePath(): string {
-  return process.env.JOB_AGENT_DATA ?? DEFAULT_STORE;
-}
+import { getDb } from "./db.js";
 
 export function jobIdFor(url: string): string {
   // Strip querystring/tracking params so the same posting isn't treated as
@@ -17,28 +9,14 @@ export function jobIdFor(url: string): string {
   return createHash("sha256").update(clean).digest("hex").slice(0, 16);
 }
 
-async function readStore(): Promise<ApplicationRecord[]> {
-  const path = storePath();
-  if (!existsSync(path)) return [];
-  try {
-    const raw = await readFile(path, "utf-8");
-    return JSON.parse(raw) as ApplicationRecord[];
-  } catch {
-    return [];
-  }
-}
-
-async function writeStore(records: ApplicationRecord[]): Promise<void> {
-  const path = storePath();
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(records, null, 2), "utf-8");
+function parseRows(rows: unknown[]): ApplicationRecord[] {
+  return (rows as Array<{ data: string }>).map((row) => JSON.parse(row.data) as ApplicationRecord);
 }
 
 /** Returns the existing record if this job URL was already applied to/prefilled, else undefined. */
 export async function findExisting(url: string): Promise<ApplicationRecord | undefined> {
-  const id = jobIdFor(url);
-  const records = await readStore();
-  return records.find((r) => r.id === id);
+  const row = getDb().prepare("SELECT data FROM applications WHERE id = ?").get(jobIdFor(url));
+  return row ? parseRows([row])[0] : undefined;
 }
 
 export async function recordApplication(record: Omit<ApplicationRecord, "id" | "appliedAt">): Promise<ApplicationRecord> {
@@ -47,17 +25,17 @@ export async function recordApplication(record: Omit<ApplicationRecord, "id" | "
     id: jobIdFor(record.url),
     appliedAt: new Date().toISOString(),
   };
-  const records = await readStore();
-  const idx = records.findIndex((r) => r.id === full.id);
-  if (idx >= 0) {
-    records[idx] = full;
-  } else {
-    records.push(full);
-  }
-  await writeStore(records);
+  getDb()
+    .prepare(
+      `INSERT INTO applications (id, url, platform, status, applied_at, data) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET url = excluded.url, platform = excluded.platform, status = excluded.status,
+         applied_at = excluded.applied_at, data = excluded.data`
+    )
+    .run(full.id, full.url, full.platform, full.status, full.appliedAt, JSON.stringify(full));
   return full;
 }
 
+/** Oldest first, matching the order records were added. */
 export async function listApplications(): Promise<ApplicationRecord[]> {
-  return readStore();
+  return parseRows(getDb().prepare("SELECT data FROM applications ORDER BY applied_at").all());
 }

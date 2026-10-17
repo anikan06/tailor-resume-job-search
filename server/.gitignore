@@ -5,3 +5,5 @@ data/llm-usage.jsonl
 config/profile.yaml
 *.log
 .DS_Store
+data/app.db*
+data/*.migrated

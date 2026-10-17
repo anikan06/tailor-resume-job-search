@@ -1,5 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { kvGet, kvSet } from "./db.js";
 import type { AggregatedJob, JobListing, Profile } from "./types.js";
 import { jobIdFor, findExisting } from "./tracker.js";
 import { canAutoSubmit } from "./policy.js";
@@ -9,8 +8,6 @@ import { searchNaukriJobs } from "./platforms/naukri.js";
 import { searchIndeedJobs } from "./platforms/indeed.js";
 import { searchGoogleJobs } from "./platforms/google.js";
 import { careerToText } from "./resume/careerSections.js";
-
-const CACHE_PATH = process.env.JOB_AGENT_CACHE ?? new URL("../data/jobs-cache.json", import.meta.url).pathname;
 
 export interface AggregationSourceError {
   source: string;
@@ -118,18 +115,12 @@ export async function aggregateJobs(profile: Profile, resumeText: string): Promi
 
 function persistCache(result: AggregationResult): void {
   try {
-    mkdirSync(dirname(CACHE_PATH), { recursive: true });
-    writeFileSync(CACHE_PATH, JSON.stringify(result, null, 2), "utf-8");
+    kvSet("jobs_cache", result);
   } catch (err) {
-    console.error("[job-search-agent] Failed to persist jobs cache:", err);
+    console.error("[aahvya-job-aggregator] Failed to persist jobs cache:", err);
   }
 }
 
 export function readCachedAggregation(): AggregationResult | undefined {
-  if (!existsSync(CACHE_PATH)) return undefined;
-  try {
-    return JSON.parse(readFileSync(CACHE_PATH, "utf-8")) as AggregationResult;
-  } catch {
-    return undefined;
-  }
+  return kvGet<AggregationResult>("jobs_cache");
 }

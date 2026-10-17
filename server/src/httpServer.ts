@@ -350,6 +350,6 @@ app.put("/api/schedule", (req: Request, res: Response) => {
 
 const PORT = Number(process.env.PORT ?? 4000);
 app.listen(PORT, () => {
-  console.error(`[job-search-agent] HTTP API listening on http://localhost:${PORT}`);
+  console.error(`[aahvya-job-aggregator] HTTP API listening on http://localhost:${PORT}`);
   applySchedule(loadProfile());
 });

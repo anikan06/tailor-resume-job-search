@@ -10,3 +10,5 @@ web/node_modules/
 web/dist/
 web/.angular/
 .DS_Store
+server/data/app.db*
+server/data/*.migrated
