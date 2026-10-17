@@ -13,7 +13,7 @@ import { extractResumeText } from "./resume/parse.js";
 import { extractProfileFromResume, extractHeuristically, withCareerSuggestions } from "./resume/extractProfile.js";
 import { importFromGitHub, importFromLinkedIn } from "./resume/importProfile.js";
 import { generateResumePdf } from "./resume/pdf.js";
-import { generateResumeDocx } from "./resume/generate.js";
+import { generateResumeDocx, type TailoredEntry, type TailoredResumeInput, type TailoredSection } from "./resume/generate.js";
 import { getState, setState } from "./state.js";
 import { aggregateJobs, readCachedAggregation } from "./jobsStore.js";
 import { fetchJobDescriptionText, fetchJobPosting, readJobDescription } from "./jobDescription.js";
@@ -220,6 +220,51 @@ app.post("/api/profile/career/from-resume", async (req: Request, res: Response) 
 
 /** File id (in TAILORED_DIR) of the Profile page's general ATS resume - there's only ever one. */
 const PROFILE_RESUME_ID = "ats-profile";
+/** Its editable content, kept beside the PDF/Word files so edits survive a reload. */
+const PROFILE_RESUME_JSON = join(TAILORED_DIR, `${PROFILE_RESUME_ID}.json`);
+
+/** Coerces edited resume content from the browser into the renderer's shape, dropping blanks. */
+function cleanResumeContent(body: unknown): TailoredResumeInput {
+  const b = (body ?? {}) as Record<string, any>;
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const strs = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
+  const sections = (Array.isArray(b.sections) ? b.sections : [])
+    .map((s: Record<string, any>) => ({
+      heading: str(s?.heading),
+      lines: strs(s?.lines),
+      entries: (Array.isArray(s?.entries) ? s.entries : [])
+        .map((e: Record<string, any>) => ({
+          title: str(e?.title),
+          organization: str(e?.organization),
+          location: str(e?.location),
+          dates: str(e?.dates),
+          bullets: strs(e?.bullets),
+        }))
+        .filter((e: TailoredEntry) => e.title || e.organization || e.bullets?.length),
+    }))
+    .filter((s: TailoredSection) => s.heading && (s.lines?.length || s.entries?.length));
+  return { headerTitle: str(b.headerTitle), headline: str(b.headline), contactLine: str(b.contactLine), summary: str(b.summary), sections };
+}
+
+/** Renders the Profile resume to PDF + Word and saves its content for later editing. */
+async function writeProfileResume(content: TailoredResumeInput, profile: Profile) {
+  const pdfPath = tailoredPdfPath(PROFILE_RESUME_ID);
+  await writeTailoredPdf(content, pdfPath, profile);
+  await generateResumeDocx(content, pdfPath.replace(/\.pdf$/, ".docx"));
+  writeFileSync(PROFILE_RESUME_JSON, JSON.stringify(content, null, 2));
+  return profileResumeResponse(content, profile);
+}
+
+function profileResumeResponse(content: TailoredResumeInput, profile: Profile) {
+  return {
+    jobId: PROFILE_RESUME_ID,
+    name: content.headerTitle || profile.personal?.full_name || "Resume",
+    headline: content.headline ?? "",
+    pdfUrl: `/api/tailored/${PROFILE_RESUME_ID}.pdf`,
+    docxUrl: `/api/tailored/${PROFILE_RESUME_ID}.docx`,
+    content,
+  };
+}
 
 /**
  * Profile page → "Generate ATS resume": writes a general, job-independent ATS-friendly resume
@@ -232,17 +277,30 @@ app.post("/api/profile/ats-resume", async (_req: Request, res: Response) => {
     return res.status(400).json({ error: "Add your experience on this page (or upload a resume in Settings) first." });
   }
   try {
-    const content = await generateAtsResumeWithAI(profile, resumeText ?? "");
-    const pdfPath = tailoredPdfPath(PROFILE_RESUME_ID);
-    await writeTailoredPdf(content, pdfPath, profile);
-    await generateResumeDocx(content, pdfPath.replace(/\.pdf$/, ".docx"));
-    res.json({
-      jobId: PROFILE_RESUME_ID,
-      name: content.headerTitle || profile.personal?.full_name || "Resume",
-      headline: content.headline ?? "",
-      pdfUrl: `/api/tailored/${PROFILE_RESUME_ID}.pdf`,
-      docxUrl: `/api/tailored/${PROFILE_RESUME_ID}.docx`,
-    });
+    const { jdKeywords: _unused, ...content } = await generateAtsResumeWithAI(profile, resumeText ?? "");
+    res.json(await writeProfileResume(content, profile));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** The last generated (and possibly edited) Profile resume, or 404 if none was generated yet. */
+app.get("/api/profile/ats-resume", (_req: Request, res: Response) => {
+  if (!existsSync(PROFILE_RESUME_JSON) || !existsSync(tailoredPdfPath(PROFILE_RESUME_ID))) return res.status(404).json({ error: "No ATS resume generated yet." });
+  try {
+    const content = cleanResumeContent(JSON.parse(readFileSync(PROFILE_RESUME_JSON, "utf8")));
+    res.json(profileResumeResponse(content, loadProfile()));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** Saves the user's edits to the Profile resume and re-renders the PDF + Word copies - no AI call. */
+app.put("/api/profile/ats-resume", async (req: Request, res: Response) => {
+  const content = cleanResumeContent(req.body);
+  if (!content.headerTitle) return res.status(400).json({ error: "The resume needs your name." });
+  try {
+    res.json(await writeProfileResume(content, loadProfile()));
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

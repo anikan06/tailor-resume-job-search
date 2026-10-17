@@ -13,6 +13,7 @@ import {
   Profile,
   ProfileResumeResult,
   QuickTailorRequest,
+  ResumeContent,
   QuickTailorResult,
   ResumeExtraction,
   ResumeInfo,
@@ -46,6 +47,16 @@ export class ApiService {
   /** Writes a general ATS-friendly resume (PDF + Word) from the Profile page's details. */
   generateAtsResume(): Observable<ProfileResumeResult> {
     return this.http.post<ProfileResumeResult>(`${BASE}/profile/ats-resume`, {});
+  }
+
+  /** The last generated (and possibly edited) ATS resume; 404 when there isn't one yet. */
+  getAtsResume(): Observable<ProfileResumeResult> {
+    return this.http.get<ProfileResumeResult>(`${BASE}/profile/ats-resume`);
+  }
+
+  /** Saves edits to the ATS resume and re-renders its PDF + Word copies (no AI call). */
+  saveAtsResume(content: ResumeContent): Observable<ProfileResumeResult> {
+    return this.http.put<ProfileResumeResult>(`${BASE}/profile/ats-resume`, content);
   }
 
   getResume(): Observable<ResumeInfo> {

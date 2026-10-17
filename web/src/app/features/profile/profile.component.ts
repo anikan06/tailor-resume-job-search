@@ -8,7 +8,7 @@ import { CareerProfile, Profile, ProfileResumeResult, ResumeInfo } from '../../c
 import { ImportSource } from '../settings/sections/personal-section.component';
 import { ChipInputComponent } from '../../shared/chip-input.component';
 import { IconComponent } from '../../shared/icon.component';
-import { ResumePreviewDialogComponent } from '../../shared/resume-preview-dialog.component';
+import { ResumeEditorDialogComponent } from '../../shared/resume-editor-dialog.component';
 
 type ListKey = 'experience' | 'education' | 'projects' | 'certifications' | 'languages' | 'additional_sections';
 type EditKey = ListKey | 'about';
@@ -125,7 +125,7 @@ function currentMonth(): number {
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, IconComponent, ChipInputComponent, ResumePreviewDialogComponent],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, IconComponent, ChipInputComponent, ResumeEditorDialogComponent],
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss'
 })
@@ -143,9 +143,10 @@ export class ProfileComponent implements OnInit {
   fetching = signal(false);
   confirmingReplace = signal(false);
   importing = signal<ImportSource | null>(null);
-  /** "Generate ATS resume": in progress, and the result shown in the preview dialog. */
+  /** "Generate ATS resume": in progress, the last generated one, and whether its editor is open. */
   generatingResume = signal(false);
-  atsResume = signal<(ProfileResumeResult & { version: number }) | null>(null);
+  atsResume = signal<ProfileResumeResult | null>(null);
+  atsEditor = signal<'preview' | 'edit' | null>(null);
   /** Source whose profile link we're asking for, because none is saved in Settings. */
   askingLinkFor = signal<ImportSource | null>(null);
   importLink = '';
@@ -183,6 +184,7 @@ export class ProfileComponent implements OnInit {
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
+    this.loadAtsResume();
     forkJoin({ profile: this.api.getProfile(), resume: this.api.getResume() }).subscribe({
       next: ({ profile, resume }) => {
         this.profile.set(profile);
@@ -194,6 +196,17 @@ export class ProfileComponent implements OnInit {
         this.loading.set(false);
       }
     });
+  }
+
+  /** Picks up a previously generated ATS resume, so it can be edited without regenerating. */
+  private loadAtsResume(): void {
+    this.api.getAtsResume().subscribe({ next: (res) => this.atsResume.set(res), error: () => this.atsResume.set(null) });
+  }
+
+  /** Keeps the saved edits when the editor closes, so reopening it shows them. */
+  onAtsEditorClosed(): void {
+    this.atsEditor.set(null);
+    this.loadAtsResume();
   }
 
   // ---- display helpers ------------------------------------------------------
@@ -349,7 +362,8 @@ export class ProfileComponent implements OnInit {
     this.api.generateAtsResume().subscribe({
       next: (res) => {
         this.generatingResume.set(false);
-        this.atsResume.set({ ...res, version: Date.now() });
+        this.atsResume.set(res);
+        this.atsEditor.set('preview');
       },
       error: (err) => {
         this.generatingResume.set(false);

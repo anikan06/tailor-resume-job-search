@@ -21,9 +21,14 @@
             @if (generatingResume()) {
               <span class="spinner"></span> Generating&hellip;
             } @else {
-              <app-icon name="sparkles" [size]="15" /> Generate ATS resume
+              <app-icon name="sparkles" [size]="15" /> {{ atsResume() ? 'Regenerate ATS resume' : 'Generate ATS resume' }}
             }
           </button>
+          @if (atsResume()) {
+            <button class="btn" (click)="atsEditor.set('edit')" [disabled]="generatingResume()" title="Edit your last generated resume: experience, bullets, summary, skills">
+              <app-icon name="edit" [size]="15" /> Edit ATS resume
+            </button>
+          }
           <button
             class="btn"
             (click)="fillFromResume()"
@@ -699,14 +704,6 @@
   </form>
 </ng-template>
 
-@if (atsResume(); as res) {
-  <app-resume-preview-dialog
-    [jobId]="res.jobId"
-    [title]="res.headline ? res.name + ' · ' + res.headline : res.name"
-    heading="ATS-friendly resume"
-    [fileName]="'Resume - ' + res.name"
-    [docx]="true"
-    [version]="res.version"
-    (closed)="atsResume.set(null)"
-  />
+@if (atsEditor() && atsResume(); as res) {
+  <app-resume-editor-dialog [result]="res" [startInEdit]="atsEditor() === 'edit'" (closed)="onAtsEditorClosed()" />
 }
