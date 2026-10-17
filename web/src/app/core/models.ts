@@ -146,7 +146,8 @@ export interface ApplicationRecord {
   title: string;
   company: string;
   url: string;
-  status: 'prefilled' | 'submitted' | 'skipped_duplicate' | 'failed';
+  /** 'tailored': only a resume was made, from a job link, for the user to apply with themselves. */
+  status: 'prefilled' | 'submitted' | 'skipped_duplicate' | 'failed' | 'tailored';
   appliedAt: string;
   note?: string;
   tailored?: boolean;
@@ -182,7 +183,7 @@ export interface ApplyResult {
   error?: string;
 }
 
-export type LlmActivity = 'tailor_resume' | 'extract_resume' | 'import_profile';
+export type LlmActivity = 'tailor_resume' | 'extract_resume' | 'import_profile' | 'read_job';
 
 export interface UsageTotals {
   calls: number;
@@ -257,4 +258,41 @@ export interface UsageSummary {
   /** Keyed by local calendar day (YYYY-MM-DD), oldest first. */
   byDay: Record<string, UsageTotals>;
   recent: LlmUsageRecord[];
+}
+
+export interface LinkTailorRequest {
+  url: string;
+  title?: string;
+  company?: string;
+  /** Pasted job description, for postings the server can't read (e.g. behind a login). */
+  description?: string;
+  /** Key responsibilities and must-have skills as the user checked them, one per line. */
+  responsibilities?: string;
+  skills?: string;
+}
+
+export interface LinkTailorResult {
+  jobId: string;
+  title: string;
+  company: string;
+  platform: Platform;
+  pdfUrl: string;
+}
+
+/** What the server read from a pasted job link, shown for the user to check before tailoring. */
+export interface JobPostingPreview {
+  platform: Platform;
+  title: string;
+  company: string;
+  /** Empty when the page couldn't be read - `warning` then says so. */
+  description: string;
+  responsibilities: string[];
+  /** Must-have / required skills only. */
+  skills: string[];
+  warning?: string;
+}
+
+export interface JobSections {
+  responsibilities: string[];
+  skills: string[];
 }

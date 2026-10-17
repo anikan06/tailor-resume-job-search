@@ -10,21 +10,21 @@ import { IconComponent } from '../../../shared/icon.component';
   styleUrl: './section.scss',
   template: `
     @if (answers.length) {
-      <div class="qa-head">
+      <div class="qa-head" aria-hidden="true">
         <span>If the question contains&hellip;</span>
         <span>Answer with&hellip;</span>
       </div>
     }
     @for (qa of answers; track $index) {
       <div class="qa-row">
-        <input [(ngModel)]="qa.question_contains" [name]="'q' + $index" placeholder="e.g. sponsorship" />
-        <input [(ngModel)]="qa.answer" [name]="'a' + $index" placeholder="e.g. No" />
-        <button class="btn btn--ghost btn--icon btn--danger" (click)="remove($index)" title="Remove">
+        <input [(ngModel)]="qa.question_contains" [name]="'q' + $index" placeholder="e.g. sponsorship" [attr.aria-label]="'Question ' + ($index + 1) + ' contains'" />
+        <input [(ngModel)]="qa.answer" [name]="'a' + $index" placeholder="e.g. No" [attr.aria-label]="'Answer ' + ($index + 1)" />
+        <button type="button" class="btn btn--ghost btn--icon btn--danger" (click)="remove($index)" title="Remove" [attr.aria-label]="'Remove answer ' + ($index + 1)">
           <app-icon name="trash" [size]="16" />
         </button>
       </div>
     }
-    <button class="btn btn--sm" (click)="add()"><app-icon name="plus" [size]="15" /> Add answer</button>
+    <button type="button" class="btn btn--sm" (click)="add()"><app-icon name="plus" [size]="15" /> Add answer</button>
   `
 })
 export class AnswersSectionComponent {

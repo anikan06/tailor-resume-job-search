@@ -16,7 +16,8 @@ const STATUS_LABELS: Record<Status, string> = {
   submitted: 'Submitted',
   prefilled: 'Prefilled',
   skipped_duplicate: 'Duplicate',
-  failed: 'Failed'
+  failed: 'Failed',
+  tailored: 'Tailored only'
 };
 
 @Component({
@@ -42,7 +43,7 @@ export class HistoryComponent implements OnInit {
   readonly tokenTitle = tokenTitle;
 
   counts = computed(() => {
-    const c: Record<StatusFilter, number> = { all: 0, submitted: 0, prefilled: 0, skipped_duplicate: 0, failed: 0 };
+    const c: Record<StatusFilter, number> = { all: 0, submitted: 0, prefilled: 0, skipped_duplicate: 0, failed: 0, tailored: 0 };
     for (const r of this.records()) {
       c.all++;
       c[r.status]++;
@@ -54,7 +55,8 @@ export class HistoryComponent implements OnInit {
     { key: 'all', label: 'All' },
     { key: 'submitted', label: 'Submitted' },
     { key: 'prefilled', label: 'Prefilled' },
-    { key: 'failed', label: 'Failed' }
+    { key: 'failed', label: 'Failed' },
+    { key: 'tailored', label: 'Tailored only' }
   ];
 
   visible = computed(() => {

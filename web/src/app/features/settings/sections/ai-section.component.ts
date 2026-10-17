@@ -125,9 +125,10 @@ const PROVIDERS: ProviderOption[] = [
             [(ngModel)]="apiKey"
             name="apiKeyInput"
             [placeholder]="keyConfigured ? 'Leave blank to keep the current key' : current.keyPlaceholder"
+            aria-describedby="apikey-help"
           />
         </div>
-        <p class="field__help">{{ current.help }}</p>
+        <p class="field__help" id="apikey-help">{{ current.help }}</p>
       </div>
     } @else {
       <div class="field">
@@ -139,8 +140,8 @@ const PROVIDERS: ProviderOption[] = [
 
     <div class="field">
       <label for="aimodel">Model</label>
-      <input id="aimodel" class="mono" [(ngModel)]="ai.model" name="aiModel" [placeholder]="current.defaultModel" />
-      <p class="field__help">
+      <input id="aimodel" class="mono" [(ngModel)]="ai.model" name="aiModel" [placeholder]="current.defaultModel" aria-describedby="aimodel-help" />
+      <p class="field__help" id="aimodel-help">
         Leave blank for {{ current.defaultModel }}. With a provider set up, resume uploads are also read by AI for more accurate
         prefill and role suggestions.
       </p>

@@ -12,7 +12,7 @@
   <div class="layout">
     <nav class="toc" aria-label="Settings sections">
       @for (s of sections; track s.id) {
-        <button class="toc__item" [class.active]="activeSection() === s.id" (click)="scrollTo(s.id)">
+        <button type="button" class="toc__item" [class.active]="activeSection() === s.id" [attr.aria-current]="activeSection() === s.id ? 'location' : null" (click)="scrollTo(s.id)">
           <app-icon [name]="s.icon" [size]="16" />
           {{ s.label }}
         </button>
@@ -21,11 +21,11 @@
 
     <div class="sections">
       <!-- Resume -->
-      <section id="resume" class="card">
+      <section id="resume" class="card" tabindex="-1" aria-labelledby="resume-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="file" /></span>
           <div>
-            <h2>Resume</h2>
+            <h2 id="resume-title">Resume</h2>
             <p class="hint">The base resume that gets tailored for each job description.</p>
           </div>
         </div>
@@ -74,7 +74,7 @@
           (dragleave)="dragging.set(false)"
           (drop)="onDrop($event)"
         >
-          <input type="file" accept=".pdf,.docx,.txt,.md" (change)="onResumeSelected($event)" [disabled]="uploading()" />
+          <input type="file" accept=".pdf,.docx,.txt,.md" aria-describedby="resume-formats" (change)="onResumeSelected($event)" [disabled]="uploading()" />
           @if (uploading()) {
             <span class="spinner"></span>
             <span class="dropzone__title">Uploading and extracting text&hellip;</span>
@@ -83,7 +83,7 @@
             <span class="dropzone__title">
               <strong>{{ resume().uploaded ? 'Replace resume' : 'Upload your resume' }}</strong> &mdash; drag &amp; drop or click to browse
             </span>
-            <span class="dropzone__hint">PDF, DOCX, TXT or Markdown</span>
+            <span class="dropzone__hint" id="resume-formats">PDF, DOCX, TXT or Markdown</span>
           }
         </label>
 
@@ -101,11 +101,11 @@
       </section>
 
       <!-- Personal -->
-      <section id="personal" class="card">
+      <section id="personal" class="card" tabindex="-1" aria-labelledby="personal-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="user" /></span>
           <div>
-            <h2>Personal details</h2>
+            <h2 id="personal-title">Personal details</h2>
             <p class="hint">Used to fill standard fields on application forms.</p>
           </div>
         </div>
@@ -130,11 +130,11 @@
       </section>
 
       <!-- Search -->
-      <section id="search" class="card">
+      <section id="search" class="card" tabindex="-1" aria-labelledby="search-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="target" /></span>
           <div>
-            <h2>What you're looking for</h2>
+            <h2 id="search-title">What you're looking for</h2>
             <p class="hint">Separate multiple values with commas.</p>
           </div>
         </div>
@@ -153,11 +153,11 @@
       </section>
 
       <!-- Boards -->
-      <section id="boards" class="card">
+      <section id="boards" class="card" tabindex="-1" aria-labelledby="boards-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="building" /></span>
           <div>
-            <h2>Company career pages</h2>
+            <h2 id="boards-title">Company career pages</h2>
             <p class="hint">Greenhouse and Lever board slugs to track &mdash; auto-apply is allowed on these.</p>
           </div>
         </div>
@@ -176,11 +176,11 @@
       </section>
 
       <!-- AI -->
-      <section id="ai" class="card">
+      <section id="ai" class="card" tabindex="-1" aria-labelledby="ai-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="sparkles" /></span>
           <div>
-            <h2>AI resume tailoring</h2>
+            <h2 id="ai-title">AI resume tailoring</h2>
             <p class="hint">
               Use Claude, ChatGPT (OpenAI), Gemini or a free local model to tailor resume content per job. Keys are
               stored locally in <code>config/profile.yaml</code> and only sent to the provider you pick.
@@ -202,11 +202,11 @@
       </section>
 
       <!-- Apply mode -->
-      <section id="apply" class="card">
+      <section id="apply" class="card" tabindex="-1" aria-labelledby="apply-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="send" /></span>
           <div>
-            <h2>How to apply</h2>
+            <h2 id="apply-title">How to apply</h2>
             <p class="hint">Let the app fill in applications for you, or just get a tailored resume and apply yourself.</p>
           </div>
         </div>
@@ -225,11 +225,11 @@
       </section>
 
       <!-- Custom answers -->
-      <section id="answers" class="card">
+      <section id="answers" class="card" tabindex="-1" aria-labelledby="answers-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="message" /></span>
           <div>
-            <h2>Application question answers</h2>
+            <h2 id="answers-title">Application question answers</h2>
             <p class="hint">
               Matched against form field labels when applying. Anything that doesn't match is left blank for you
               rather than guessed.
@@ -251,11 +251,11 @@
       </section>
 
       <!-- Schedule -->
-      <section id="schedule" class="card">
+      <section id="schedule" class="card" tabindex="-1" aria-labelledby="schedule-title">
         <div class="section-head">
           <span class="section-head__icon"><app-icon name="calendar" /></span>
           <div>
-            <h2>Background search</h2>
+            <h2 id="schedule-title">Background search</h2>
             <p class="hint">Keep the dashboard fresh without clicking “Search now”.</p>
           </div>
         </div>
@@ -278,6 +278,7 @@
 
 <div class="savebar">
   <div class="savebar__inner">
+    <div role="status" aria-live="polite">
     @if (saveMessage(); as m) {
       <span class="savebar__msg" [attr.data-tone]="m.tone">
         <app-icon [name]="m.tone === 'success' ? 'check' : 'alert'" [size]="16" /> {{ m.text }}
@@ -285,6 +286,7 @@
     } @else {
       <span class="savebar__msg">Changes are saved to your local profile.</span>
     }
+    </div>
     <button class="btn btn--primary" (click)="save()" [disabled]="saving()">
       @if (saving()) {
         <span class="spinner"></span> Saving…

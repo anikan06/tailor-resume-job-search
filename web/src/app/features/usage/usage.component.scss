@@ -119,6 +119,8 @@ h2 {
 }
 
 .table-scroll {
+  /* Positioned so visually-hidden text in cells is clipped with the table instead of widening the page. */
+  position: relative;
   overflow-x: auto;
 }
 
@@ -381,10 +383,3 @@ td small {
   overflow-wrap: anywhere;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}

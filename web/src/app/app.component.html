@@ -1,31 +1,40 @@
+<a class="skip-link" href="#main" (click)="focusMain($event)">Skip to main content</a>
+
 <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" routerLink="/dashboard">
+  <header class="sidebar">
+    <a class="brand" routerLink="/dashboard" aria-label="Aahvya Job Agent, go to dashboard">
       <span class="brand__mark"><app-icon name="sparkles" [size]="18" /></span>
       <span class="brand__text">
-        <strong>AAHVYA JOB AGENT</strong>
+        <strong>Aahvya Job Agent</strong>
         <small>Tailor &middot; Apply &middot; Track</small>
       </span>
     </a>
 
-    <nav class="nav">
+    <nav class="nav" aria-label="Main">
       @for (item of nav; track item.path) {
-        <a [routerLink]="item.path" routerLinkActive="active" class="nav__item">
-          <app-icon [name]="item.icon" />
-          <span>{{ item.label }}</span>
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          class="nav__item"
+        >
+          <app-icon [name]="item.icon" [size]="20" />
+          <span class="nav__label">{{ item.label }}</span>
         </a>
       }
     </nav>
 
     <div class="sidebar__footer">
-      <button class="theme-toggle" (click)="cycleTheme()" [attr.aria-label]="'Theme: ' + theme()">
-        <span class="theme-toggle__dot" [attr.data-mode]="theme()"></span>
-        <span>{{ themeLabel() }}</span>
+      <button type="button" class="theme-toggle" (click)="cycleTheme()" [attr.aria-label]="'Change theme. Current: ' + themeLabel()">
+        <span class="theme-toggle__dot" [attr.data-mode]="theme()" aria-hidden="true"></span>
+        <span class="theme-toggle__label">{{ themeLabel() }}</span>
       </button>
     </div>
-  </aside>
+  </header>
 
-  <main class="content">
+  <main id="main" class="content" tabindex="-1">
     <router-outlet></router-outlet>
   </main>
 </div>
+
+<p class="sr-only" aria-live="polite" aria-atomic="true">{{ routeAnnouncement() }}</p>

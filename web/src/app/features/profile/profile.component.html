@@ -236,7 +236,7 @@
                 </ul>
               }
             </div>
-            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'experience', i: i, first: first, last: last }" />
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'experience', i: i, first: first, last: last, name: e.title || e.company }" />
           </article>
         }
       } @empty {
@@ -288,7 +288,7 @@
                 </ul>
               }
             </div>
-            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'education', i: i, first: first, last: last }" />
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'education', i: i, first: first, last: last, name: e.institution || e.degree }" />
           </article>
         }
       } @empty {
@@ -306,6 +306,7 @@
       </div>
       <app-chip-input
         inputId="skills"
+        ariaLabel="Add a skill"
         [values]="career().skills ?? []"
         (valuesChange)="saveSkills($event)"
         placeholder="Type a skill and press Enter"
@@ -338,7 +339,7 @@
                 <p class="entry__sub">{{ l.proficiency }}</p>
               }
             </div>
-            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'languages', i: i, first: first, last: last }" />
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'languages', i: i, first: first, last: last, name: l.name }" />
           </article>
         }
       } @empty {
@@ -391,7 +392,7 @@
                 </ul>
               }
             </div>
-            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'projects', i: i, first: first, last: last }" />
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'projects', i: i, first: first, last: last, name: p.name }" />
           </article>
         }
       } @empty {
@@ -438,7 +439,7 @@
                 </p>
               }
             </div>
-            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'certifications', i: i, first: first, last: last }" />
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'certifications', i: i, first: first, last: last, name: c.name }" />
           </article>
         }
       } @empty {
@@ -477,7 +478,7 @@
                 </ul>
               }
             </div>
-            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'additional_sections', i: i, first: first, last: last }" />
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'additional_sections', i: i, first: first, last: last, name: a.heading }" />
           </article>
         }
       } @empty {
@@ -491,18 +492,18 @@
 
 <!-- ---- shared templates ---- -->
 
-<ng-template #entryActions let-key="key" let-i="i" let-first="first" let-last="last">
+<ng-template #entryActions let-key="key" let-i="i" let-first="first" let-last="last" let-name="name">
   <div class="entry__actions">
-    <button class="btn btn--ghost btn--icon" (click)="move(key, i, -1)" [disabled]="first || saving()" title="Move up" aria-label="Move up">
+    <button class="btn btn--ghost btn--icon" (click)="move(key, i, -1)" [disabled]="first || saving()" title="Move up" [attr.aria-label]="'Move ' + (name || 'item') + ' up'">
       <app-icon name="chevron" [size]="15" class="flip" />
     </button>
-    <button class="btn btn--ghost btn--icon" (click)="move(key, i, 1)" [disabled]="last || saving()" title="Move down" aria-label="Move down">
+    <button class="btn btn--ghost btn--icon" (click)="move(key, i, 1)" [disabled]="last || saving()" title="Move down" [attr.aria-label]="'Move ' + (name || 'item') + ' down'">
       <app-icon name="chevron" [size]="15" />
     </button>
-    <button class="btn btn--ghost btn--icon" (click)="startEdit(key, i)" [disabled]="saving()" title="Edit" aria-label="Edit">
+    <button class="btn btn--ghost btn--icon" (click)="startEdit(key, i)" [disabled]="saving()" title="Edit" [attr.aria-label]="'Edit ' + (name || 'item')">
       <app-icon name="edit" [size]="15" />
     </button>
-    <button class="btn btn--ghost btn--icon btn--danger" (click)="remove(key, i)" [disabled]="saving()" title="Delete" aria-label="Delete">
+    <button class="btn btn--ghost btn--icon btn--danger" (click)="remove(key, i)" [disabled]="saving()" title="Delete" [attr.aria-label]="'Delete ' + (name || 'item')">
       <app-icon name="trash" [size]="15" />
     </button>
   </div>

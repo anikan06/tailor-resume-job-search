@@ -23,6 +23,7 @@ import { IconComponent } from './icon.component';
       <input
         #field
         [id]="inputId()"
+        [attr.aria-label]="ariaLabel() ?? null"
         [placeholder]="values().length ? 'Add more…' : placeholder()"
         (keydown)="onKeydown($event, field)"
         (input)="onInput(field)"
@@ -151,6 +152,8 @@ export class ChipInputComponent {
   suggestionsLabel = input('Suggestions:');
   placeholder = input('');
   inputId = input<string | undefined>(undefined);
+  /** Accessible name when there's no <label for> pointing at inputId. */
+  ariaLabel = input<string | undefined>(undefined);
   tone = input<'accent' | 'muted'>('accent');
 
   remainingSuggestions = computed(() => {

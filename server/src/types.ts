@@ -147,7 +147,8 @@ export interface ApplicationRecord {
   title: string;
   company: string;
   url: string;
-  status: "prefilled" | "submitted" | "skipped_duplicate" | "failed";
+  /** "tailored": only a resume was made, from a job link, for the user to apply with themselves. */
+  status: "prefilled" | "submitted" | "skipped_duplicate" | "failed" | "tailored";
   appliedAt: string;     // ISO timestamp
   note?: string;
 }

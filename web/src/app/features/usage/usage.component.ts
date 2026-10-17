@@ -20,7 +20,8 @@ type CallFilter = 'all' | LlmActivity | 'failed';
 const ACTIVITY_LABELS: Record<LlmActivity, string> = {
   tailor_resume: 'Resume tailoring',
   extract_resume: 'Resume reading',
-  import_profile: 'Profile import'
+  import_profile: 'Profile import',
+  read_job: 'Job reading'
 };
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
@@ -94,6 +95,7 @@ export class UsageComponent implements OnInit {
     { key: 'tailor_resume', label: 'Tailoring' },
     { key: 'extract_resume', label: 'Resume reading' },
     { key: 'import_profile', label: 'Imports' },
+    { key: 'read_job', label: 'Job reading' },
     { key: 'failed', label: 'Failed' }
   ];
 
@@ -149,7 +151,7 @@ export class UsageComponent implements OnInit {
   });
 
   counts = computed(() => {
-    const c: Record<CallFilter, number> = { all: 0, tailor_resume: 0, extract_resume: 0, import_profile: 0, failed: 0 };
+    const c: Record<CallFilter, number> = { all: 0, tailor_resume: 0, extract_resume: 0, import_profile: 0, read_job: 0, failed: 0 };
     for (const r of this.usage()?.recent ?? []) {
       c.all++;
       c[r.activity]++;

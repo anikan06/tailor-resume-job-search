@@ -3,7 +3,8 @@ import express, { type Request, type Response } from "express";
 import cors from "cors";
 import type { Page } from "playwright";
 import multer from "multer";
-import { mkdirSync, existsSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,18 +15,21 @@ import { importFromGitHub, importFromLinkedIn } from "./resume/importProfile.js"
 import { generateResumePdf } from "./resume/pdf.js";
 import { getState, setState } from "./state.js";
 import { aggregateJobs, readCachedAggregation } from "./jobsStore.js";
-import { fetchJobDescriptionText, readJobDescription } from "./jobDescription.js";
+import { fetchJobDescriptionText, fetchJobPosting, readJobDescription } from "./jobDescription.js";
+import { guessJobDetails } from "./jobLink.js";
+import { extractJobSections } from "./jobSections.js";
+import { platformForUrl } from "./platforms/google.js";
 import { tailorResumeWithAI } from "./aiTailor.js";
 import { AI_PROVIDERS, activeProvider, isAiConfigured } from "./llm.js";
 import { applyToAtsJob } from "./platforms/ats.js";
 import { prefillLinkedInApplication } from "./platforms/linkedin.js";
 import { prefillNaukriApplication } from "./platforms/naukri.js";
 import { prefillIndeedApplication } from "./platforms/indeed.js";
-import { findExisting, recordApplication, listApplications } from "./tracker.js";
+import { findExisting, getRecord, jobIdFor, recordApplication, listApplications } from "./tracker.js";
 import { policyExplanation, canAutoSubmit } from "./policy.js";
 import { applySchedule } from "./scheduler.js";
 import { summarizeLlmUsage } from "./telemetry.js";
-import type { Profile, AggregatedJob } from "./types.js";
+import type { Profile, AggregatedJob, Platform } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "data");
@@ -76,14 +80,39 @@ function tailoredPdfPath(jobId: string): string {
   return join(TAILORED_DIR, `${basename(jobId)}.pdf`);
 }
 
+/** Fingerprint of the Profile page's career details, stored beside each tailored PDF. */
+function careerFingerprint(profile: Profile): string {
+  return createHash("sha256").update(JSON.stringify(profile.career ?? {})).digest("hex");
+}
+
+function careerStampPath(pdfPath: string): string {
+  return pdfPath.replace(/\.pdf$/, ".career");
+}
+
+/** True when the PDF was tailored from the current Profile details (new skills etc. would be missing otherwise). */
+function isTailoredUpToDate(pdfPath: string, profile: Profile): boolean {
+  if (!existsSync(pdfPath)) return false;
+  try {
+    return readFileSync(careerStampPath(pdfPath), "utf8") === careerFingerprint(profile);
+  } catch {
+    return false;
+  }
+}
+
+async function writeTailoredPdf(content: Parameters<typeof generateResumePdf>[0], pdfPath: string, profile: Profile): Promise<void> {
+  await generateResumePdf(content, pdfPath);
+  writeFileSync(careerStampPath(pdfPath), careerFingerprint(profile));
+}
+
 /**
- * Tailors (if not already done for this job) and returns the PDF path, reusing a cached tailor if present.
+ * Tailors (if not already done for this job) and returns the PDF path, reusing a cached tailor if present
+ * and the Profile page hasn't changed since - otherwise it re-tailors so added skills/languages show up.
  * `readJd` reads the description from a page the caller already has open; without it the posting is
  * fetched separately when search results didn't include a full description.
  */
 async function ensureTailoredResume(job: AggregatedJob, profile: Profile, readJd?: () => Promise<string>): Promise<string> {
   const pdfPath = tailoredPdfPath(job.id);
-  if (existsSync(pdfPath)) return pdfPath;
+  if (isTailoredUpToDate(pdfPath, profile)) return pdfPath;
 
   const { resumeText } = getState();
   if (!resumeText) throw new Error("No resume uploaded yet - upload one in Settings first.");
@@ -93,7 +122,7 @@ async function ensureTailoredResume(job: AggregatedJob, profile: Profile, readJd
       ? job.snippet
       : await (readJd ? readJd() : fetchJobDescriptionText(job.url, job.platform));
   const content = await tailorResumeWithAI(resumeText, job.title, job.company, jdText, profile, job.id);
-  await generateResumePdf(content, pdfPath);
+  await writeTailoredPdf(content, pdfPath, profile);
   return pdfPath;
 }
 
@@ -206,7 +235,9 @@ app.post("/api/profile/import/:source", async (req: Request, res: Response) => {
 
 app.get("/api/jobs", (_req: Request, res: Response) => {
   const cached = readCachedAggregation() ?? { jobs: [], errors: [], aggregatedAt: null };
-  res.json({ ...cached, jobs: cached.jobs.map((j) => ({ ...j, tailored: existsSync(tailoredPdfPath(j.id)) })) });
+  // A resume tailored before the Profile page changed counts as not tailored, so it gets redone.
+  const profile = loadProfile();
+  res.json({ ...cached, jobs: cached.jobs.map((j) => ({ ...j, tailored: isTailoredUpToDate(tailoredPdfPath(j.id), profile) })) });
 });
 
 app.post("/api/jobs/aggregate", async (req: Request, res: Response) => {
@@ -230,6 +261,113 @@ app.post("/api/jobs/:id/tailor", async (req: Request, res: Response) => {
     res.json({ jobId: job.id, pdfUrl: `/api/tailored/${job.id}.pdf` });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+const MIN_DESCRIPTION_LENGTH = 500;
+const UNREADABLE_POSTING = "Couldn't read the job description from that page. Paste it below and try again.";
+
+/** The posting URL from a request body, with its platform; throws a user-facing message if it isn't a link. */
+function postingUrl(body: unknown): { url: string; platform: Platform } {
+  const url = typeof (body as { url?: unknown })?.url === "string" ? (body as { url: string }).url.trim() : "";
+  try {
+    if (!/^https?:\/\//i.test(url)) throw new Error();
+    return { url, platform: platformForUrl(url) };
+  } catch {
+    throw new Error("Enter the full job link, starting with https://");
+  }
+}
+
+/**
+ * Reads a pasted job link for the dashboard to show before tailoring: the description text
+ * plus a guessed title and company, all of which the user can correct.
+ */
+app.post("/api/job-posting", async (req: Request, res: Response) => {
+  let link;
+  try {
+    link = postingUrl(req.body);
+  } catch (err) {
+    return res.status(400).json({ error: (err as Error).message });
+  }
+  try {
+    const posting = await fetchJobPosting(link.url, link.platform);
+    const guess = guessJobDetails(link.url, posting.pageTitle);
+    const readable = posting.text.length >= MIN_DESCRIPTION_LENGTH;
+    const sections = readable ? await extractJobSections(posting.text, loadProfile()) : undefined;
+    res.json({
+      platform: link.platform,
+      title: guess.title ?? "",
+      company: guess.company ?? "",
+      description: readable ? posting.text : "",
+      responsibilities: sections?.responsibilities ?? [],
+      skills: sections?.skills ?? [],
+      ...(readable ? {} : { warning: UNREADABLE_POSTING }),
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** Key responsibilities and must-have skills from a job description the user pasted in. */
+app.post("/api/job-sections", async (req: Request, res: Response) => {
+  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+  if (!description) return res.status(400).json({ error: "Paste the job description first." });
+  try {
+    const { responsibilities, skills } = await extractJobSections(description.slice(0, 8000), loadProfile());
+    res.json({ responsibilities, skills });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * "Tailor from a job link": tailors the resume for any posting the user pastes a link to
+ * (Workday, a company careers page, ...) and hands back the PDF for them to apply with
+ * themselves - no form filling. `description` (as shown by /api/job-posting, or pasted)
+ * skips reading the page again; `title`/`company` override what's guessed from the link;
+ * `responsibilities`/`skills` (the user-checked sections) are put first for the tailoring to lean on.
+ */
+app.post("/api/tailor-from-link", async (req: Request, res: Response) => {
+  const field = (name: string) => (typeof req.body?.[name] === "string" ? (req.body[name] as string).trim() : "");
+  let link;
+  try {
+    link = postingUrl(req.body);
+  } catch (err) {
+    return res.status(400).json({ error: (err as Error).message });
+  }
+  const { url, platform } = link;
+  const { resumeText } = getState();
+  if (!resumeText) return res.status(400).json({ error: "No resume uploaded yet - upload one in Settings first." });
+
+  try {
+    const pasted = field("description");
+    const posting = pasted ? { text: pasted, pageTitle: "" } : await fetchJobPosting(url, platform);
+    // The sections the user checked on the dashboard go first, so the tailoring leans on them.
+    const focus = [
+      field("skills") && `MUST-HAVE SKILLS (prioritise these):\n${field("skills")}`,
+      field("responsibilities") && `KEY RESPONSIBILITIES:\n${field("responsibilities")}`,
+    ].filter(Boolean);
+    const jdText = focus.length ? `${focus.join("\n\n")}\n\nFULL JOB DESCRIPTION:\n${posting.text}` : posting.text;
+    if (posting.text.length < (pasted ? 100 : MIN_DESCRIPTION_LENGTH)) {
+      return res.status(422).json({ error: UNREADABLE_POSTING, needsDescription: true });
+    }
+    const guess = guessJobDetails(url, posting.pageTitle);
+    const title = field("title") || guess.title || "Job";
+    const company = field("company") || guess.company || "Company";
+    const jobId = jobIdFor(url);
+
+    const profile = loadProfile();
+    const content = await tailorResumeWithAI(resumeText, title, company, jdText, profile, jobId);
+    await writeTailoredPdf(content, tailoredPdfPath(jobId), profile);
+
+    // Shows in History for re-downloading, without overwriting a real application to the same job.
+    const existing = await getRecord(url);
+    if (!existing || existing.status === "tailored") {
+      await recordApplication({ platform, title, company, url, status: "tailored", note: "Resume tailored from a job link - apply yourself." });
+    }
+    res.json({ jobId, title, company, platform, pdfUrl: `/api/tailored/${jobId}.pdf` });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

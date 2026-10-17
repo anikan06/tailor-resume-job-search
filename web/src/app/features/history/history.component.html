@@ -48,29 +48,30 @@
   } @else if (records().length) {
     <div class="card table-card">
       <div class="table-toolbar">
-        <div class="segmented" role="tablist">
+        <div class="segmented" role="group" aria-label="Filter by status">
           @for (f of filters; track f.key) {
-            <button role="tab" [class.active]="filter() === f.key" [attr.aria-selected]="filter() === f.key" (click)="filter.set(f.key)">
-              {{ f.label }} <span class="count">{{ counts()[f.key] }}</span>
+            <button type="button" [class.active]="filter() === f.key" [attr.aria-pressed]="filter() === f.key" (click)="filter.set(f.key)">
+              {{ f.label }} <span class="count"><span class="sr-only">(</span>{{ counts()[f.key] }}<span class="sr-only">)</span></span>
             </button>
           }
         </div>
         <div class="input-icon table-toolbar__search">
           <app-icon name="search" [size]="16" />
-          <input type="search" placeholder="Filter by role or company" [value]="query()" (input)="onQuery($event)" />
+          <input type="search" placeholder="Filter by role or company" aria-label="Filter by role or company" [value]="query()" (input)="onQuery($event)" />
         </div>
       </div>
 
       <div class="table-scroll">
         <table>
+          <caption class="sr-only">Applications, newest first</caption>
           <thead>
             <tr>
-              <th>Role</th>
-              <th>Platform</th>
-              <th>Status</th>
-              <th>Applied</th>
-              <th class="right"><a class="th-link" routerLink="/usage" title="See AI usage details">AI tokens</a></th>
-              <th class="right"><span class="sr-only">Link</span></th>
+              <th scope="col">Role</th>
+              <th scope="col">Platform</th>
+              <th scope="col">Status</th>
+              <th scope="col">Applied</th>
+              <th scope="col" class="right"><a class="th-link" routerLink="/usage" title="See AI usage details">AI tokens</a></th>
+              <th scope="col" class="right"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -78,7 +79,7 @@
               <tr>
                 <td>
                   <div class="role">
-                    <div class="avatar avatar--sm" [style.--h]="companyHue(r.company)">{{ companyInitial(r.company) }}</div>
+                    <div class="avatar avatar--sm" [style.--h]="companyHue(r.company)" aria-hidden="true">{{ companyInitial(r.company) }}</div>
                     <div class="role__text">
                       <span class="role__title">{{ r.title }}</span>
                       <span class="role__company">{{ r.company }}</span>
@@ -98,16 +99,16 @@
                   @if (jobUsage(r.id); as t) {
                     <span [title]="tokenTitle(t)">{{ formatTokens(t.totalTokens) }}</span>
                   } @else {
-                    &mdash;
+                    <span aria-hidden="true">&mdash;</span><span class="sr-only">None</span>
                   }
                 </td>
                 <td class="right nowrap">
                   @if (r.tailored) {
-                    <button class="btn btn--ghost btn--icon" (click)="previewRecord.set(r)" title="View tailored resume">
+                    <button type="button" class="btn btn--ghost btn--icon" (click)="previewRecord.set(r)" title="View tailored resume" [attr.aria-label]="'View tailored resume for ' + r.title + ' at ' + r.company">
                       <app-icon name="file" [size]="16" />
                     </button>
                   }
-                  <a class="btn btn--ghost btn--icon" [href]="r.url" target="_blank" rel="noopener" title="Open job posting">
+                  <a class="btn btn--ghost btn--icon" [href]="r.url" target="_blank" rel="noopener" title="Open job posting" [attr.aria-label]="'Open job posting for ' + r.title + ' at ' + r.company + ' (opens in a new tab)'">
                     <app-icon name="external" [size]="16" />
                   </a>
                 </td>

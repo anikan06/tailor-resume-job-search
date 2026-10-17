@@ -112,7 +112,12 @@ export class SettingsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   scrollTo(id: string): void {
     this.activeSection.set(id);
-    this.host.nativeElement.querySelector(`#${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const section = this.host.nativeElement.querySelector<HTMLElement>(`#${id}`);
+    if (!section) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    section.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    // Move keyboard focus too, so Tab continues from the section that was jumped to.
+    section.focus({ preventScroll: true });
   }
 
   onResumeSelected(event: Event): void {

@@ -24,9 +24,10 @@
   border: none;
   background: transparent;
   text-align: left;
-  padding: 0.5rem 0.7rem;
-  border-radius: 8px;
-  font-size: 0.87rem;
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
   font-weight: 500;
   color: var(--text-2);
 
@@ -38,6 +39,7 @@
   &.active {
     color: var(--accent-text);
     background: var(--accent-soft);
+    font-weight: 600;
   }
 }
 
@@ -49,7 +51,16 @@
 
   section {
     scroll-margin-top: 1.5rem;
-    padding: 1.5rem;
+    padding: 1.75rem;
+
+    &:focus {
+      outline: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 3px;
+    }
   }
 }
 
@@ -166,8 +177,9 @@
     background: var(--accent-soft);
   }
 
-  &:focus-within {
-    box-shadow: var(--ring);
+  &:has(input:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 
   &--busy {
@@ -187,7 +199,7 @@
 }
 
 .dropzone__title {
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 
   strong {
     color: var(--accent-text);
@@ -195,7 +207,7 @@
 }
 
 .dropzone__hint {
-  font-size: 0.78rem;
+  font-size: 0.84rem;
   color: var(--text-3);
 }
 
@@ -248,8 +260,8 @@
 .savebar {
   position: sticky;
   bottom: 0;
-  margin: 0 -2.25rem -3rem;
-  padding: 0.85rem 2.25rem;
+  margin: 0 -2.5rem -3.5rem;
+  padding: 0.85rem 2.5rem;
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border);
@@ -283,7 +295,7 @@
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .toc {
@@ -302,9 +314,11 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 820px) {
   .savebar {
-    margin: 0 -1rem -2.5rem;
+    /* Sit above the mobile bottom tab bar. */
+    bottom: var(--bottom-nav-h);
+    margin: 0 -1rem calc(-1 * (var(--bottom-nav-h) + 2rem));
     padding: 0.75rem 1rem;
   }
 }

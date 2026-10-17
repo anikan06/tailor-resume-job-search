@@ -15,6 +15,13 @@ function parseRows(rows: unknown[]): ApplicationRecord[] {
 
 /** Returns the existing record if this job URL was already applied to/prefilled, else undefined. */
 export async function findExisting(url: string): Promise<ApplicationRecord | undefined> {
+  const record = await getRecord(url);
+  // A resume tailored for the user to apply with by hand isn't an application.
+  return record?.status === "tailored" ? undefined : record;
+}
+
+/** This job URL's tracker record of any status, including "tailored". */
+export async function getRecord(url: string): Promise<ApplicationRecord | undefined> {
   const row = getDb().prepare("SELECT data FROM applications WHERE id = ?").get(jobIdFor(url));
   return row ? parseRows([row])[0] : undefined;
 }

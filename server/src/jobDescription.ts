@@ -31,26 +31,37 @@ export async function readJobDescription(page: Page): Promise<string> {
  * read hits a login wall on LinkedIn/Naukri/Indeed.
  */
 export async function fetchJobDescriptionText(url: string, platform: Platform): Promise<string> {
+  return (await fetchJobPosting(url, platform)).text;
+}
+
+/** The posting's description text plus the page's <title>, which often names the role and company. */
+export async function fetchJobPosting(url: string, platform: Platform): Promise<{ text: string; pageTitle: string }> {
   const needsLogin = platform === "linkedin" || platform === "naukri" || platform === "indeed";
 
   const browser = await chromium.launch({ headless: true });
-  let headless = { text: "", blocked: true };
+  let headless = { text: "", pageTitle: "", blocked: true };
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded" });
+    // Workday and other script-rendered career sites fill the page in after load.
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
     const text = await readJobDescription(page);
-    headless = { text, blocked: /login|signin|sign-in|authwall|checkpoint/i.test(page.url()) || text.length < 500 };
+    headless = {
+      text,
+      pageTitle: await page.title().catch(() => ""),
+      blocked: /login|signin|sign-in|authwall|checkpoint/i.test(page.url()) || text.length < 500,
+    };
   } catch {
     // Fall through to the logged-in browser (or return whatever we have).
   } finally {
     await browser.close().catch(() => {});
   }
-  if (!needsLogin || !headless.blocked) return headless.text;
+  if (!needsLogin || !headless.blocked) return { text: headless.text, pageTitle: headless.pageTitle };
 
   const page = await newPage();
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
-    return await readJobDescription(page);
+    return { text: await readJobDescription(page), pageTitle: await page.title().catch(() => "") };
   } finally {
     await page.close().catch(() => {});
   }

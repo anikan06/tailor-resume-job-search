@@ -1,9 +1,306 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Overview</p>
-      <h1>Matching jobs</h1>
-      <p class="subtitle">
+      <p class="eyebrow">Dashboard</p>
+      <h1>Welcome{{ firstName() ? ', ' + firstName() : '' }}</h1>
+      <p class="subtitle">Start tailoring your resume and find the jobs that suit you best.</p>
+    </div>
+  </header>
+
+  <nav class="views" aria-label="Dashboard sections">
+    <button type="button" class="card view-card" [class.active]="view() === 'link'" [attr.aria-pressed]="view() === 'link'" (click)="showView('link')">
+      <span class="stat__icon"><app-icon name="link" /></span>
+      <span class="view-card__text">
+        <span class="view-card__title">Tailor from a job link</span>
+        <span class="view-card__desc">Paste any posting and get a resume tailored to it.</span>
+      </span>
+    </button>
+    <button type="button" class="card view-card" [class.active]="view() === 'best'" [attr.aria-pressed]="view() === 'best'" (click)="showView('best')">
+      <span class="stat__icon stat__icon--green"><app-icon name="target" /></span>
+      <span class="view-card__text">
+        <span class="view-card__title">Best matches <span class="count"><span class="sr-only">(</span>{{ bestMatches().length }}<span class="sr-only"> jobs)</span></span></span>
+        <span class="view-card__desc">Your top 5 roles you haven't applied to yet.</span>
+      </span>
+    </button>
+    <button type="button" class="card view-card" [class.active]="view() === 'jobs'" [attr.aria-pressed]="view() === 'jobs'" (click)="showView('jobs')">
+      <span class="stat__icon stat__icon--amber"><app-icon name="briefcase" /></span>
+      <span class="view-card__text">
+        <span class="view-card__title">Matching jobs <span class="count"><span class="sr-only">(</span>{{ stats().total }}<span class="sr-only"> jobs)</span></span></span>
+        <span class="view-card__desc">Every role from your last search.</span>
+      </span>
+    </button>
+  </nav>
+
+  @switch (view()) {
+    @case ('link') {
+      <section class="card link-tailor">
+        <div>
+          <h2>Tailor from a job link</h2>
+          <p class="link-tailor__sub">
+            Found a job yourself? Paste its link (Workday, a company careers page, anywhere). Its job description shows up below
+            to check, then you get a resume tailored to it to apply with on that site.
+          </p>
+        </div>
+
+        <form class="link-tailor__form" (submit)="$event.preventDefault(); tailorFromLink()" aria-label="Tailor from a job link">
+          <div class="input-icon link-tailor__url">
+            <app-icon name="link" [size]="16" />
+            <input
+              id="link-url"
+              type="url"
+              inputmode="url"
+              autocomplete="url"
+              required
+              placeholder="https://company.wd5.myworkdayjobs.com/…"
+              aria-label="Job posting link"
+              [value]="link.url()"
+              (input)="onLinkInput('url', $event)"
+              [disabled]="linkState().busy"
+            />
+          </div>
+          <button class="btn btn--primary" type="submit" [disabled]="linkState().busy || posting().status === 'loading' || !link.url().trim()">
+            @if (linkState().busy) {
+              <span class="spinner"></span> Tailoring…
+            } @else {
+              <app-icon name="sparkles" [size]="15" /> Tailor &amp; Download
+            }
+          </button>
+        </form>
+
+        @if (posting().status !== 'idle') {
+          <div class="link-tailor__posting" [attr.aria-busy]="posting().status === 'loading'">
+            @if (posting().status === 'loading') {
+              <div class="link-tailor__reading">
+                <span class="spinner"></span> Reading the job posting…
+              </div>
+              <div class="skeleton" style="width: 60%; height: 14px" aria-hidden="true"></div>
+              <div class="skeleton" style="width: 100%; height: 120px" aria-hidden="true"></div>
+            } @else {
+              @if (posting().message) {
+                <p class="job__status" data-tone="error"><app-icon name="alert" [size]="15" /> {{ posting().message }}</p>
+              }
+              <div class="link-tailor__options">
+                <div class="field">
+                  <label for="link-title">Job title</label>
+                  <input id="link-title" placeholder="e.g. Senior Software Engineer" [value]="link.title()" (input)="onLinkInput('title', $event)" [disabled]="linkState().busy" />
+                </div>
+                <div class="field">
+                  <label for="link-company">Company</label>
+                  <input id="link-company" placeholder="e.g. Acme" [value]="link.company()" (input)="onLinkInput('company', $event)" [disabled]="linkState().busy" />
+                </div>
+                <div class="field">
+                  <label for="link-resp">Key responsibilities</label>
+                  <textarea
+                    id="link-resp"
+                    rows="8"
+                    placeholder="One responsibility per line."
+                    [value]="link.responsibilities()"
+                    (input)="onLinkInput('responsibilities', $event)"
+                    [disabled]="linkState().busy || sectionsBusy()"
+                  ></textarea>
+                </div>
+                <div class="field">
+                  <label for="link-skills">Must-have skills</label>
+                  <textarea
+                    id="link-skills"
+                    rows="8"
+                    placeholder="One required skill per line."
+                    [value]="link.skills()"
+                    (input)="onLinkInput('skills', $event)"
+                    [disabled]="linkState().busy || sectionsBusy()"
+                  ></textarea>
+                </div>
+                <p class="field__help link-tailor__full">
+                  These two lists get the most weight when your resume is tailored. Edit them freely.
+                  @if (link.description().trim()) {
+                    <button class="link-tailor__inline-btn" type="button" (click)="extractSections()" [disabled]="sectionsBusy() || linkState().busy">
+                      @if (sectionsBusy()) { Reading… } @else { Re-read them from the description }
+                    </button>
+                  }
+                </p>
+                <div class="field link-tailor__desc">
+                  <label for="link-desc">Full job description</label>
+                  <textarea
+                    id="link-desc"
+                    rows="14"
+                    aria-describedby="link-desc-help"
+                    placeholder="Paste the job description here."
+                    [value]="link.description()"
+                    (input)="onLinkInput('description', $event)"
+                    [disabled]="linkState().busy"
+                  ></textarea>
+                  <p class="field__help" id="link-desc-help">
+                    @if (posting().status === 'ready') {
+                      Read from the page. Trim anything that isn't part of the job, since your resume is tailored to exactly this text.
+                    } @else {
+                      Your resume is tailored to exactly this text.
+                    }
+                  </p>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        @if (linkState().message) {
+          <p class="job__status" [attr.data-tone]="linkState().tone">
+            @if (linkState().tone === 'success') {
+              <app-icon name="check" [size]="15" />
+            } @else if (linkState().tone === 'error') {
+              <app-icon name="alert" [size]="15" />
+            }
+            {{ linkState().message }}
+          </p>
+        }
+
+        @if (linkResult(); as res) {
+          <div class="link-tailor__result">
+            <div>
+              <strong>{{ res.title }}</strong>
+              <span class="link-tailor__company">{{ res.company }}</span>
+            </div>
+            <div class="link-tailor__actions">
+              <button class="btn btn--sm btn--ghost" type="button" (click)="linkPreviewOpen.set(true)"><app-icon name="file" [size]="15" /> View resume</button>
+              <button class="btn btn--sm btn--ghost" type="button" (click)="downloadLinkResult()"><app-icon name="download" [size]="15" /> Download again</button>
+              <a class="btn btn--sm btn--primary" [href]="link.url()" target="_blank" rel="noopener"><app-icon name="external" [size]="15" /> Open posting to apply<span class="sr-only"> (opens in a new tab)</span></a>
+              <button class="btn btn--sm" type="button" (click)="resetLink()"><app-icon name="plus" [size]="15" /> Another link</button>
+            </div>
+          </div>
+        }
+      </section>
+    }
+
+    @case ('best') {
+      <ng-container [ngTemplateOutlet]="sectionHeader" [ngTemplateOutletContext]="{ title: 'Best matches' }" />
+      <ng-container [ngTemplateOutlet]="sourceErrors" />
+
+      <div class="jobs" [attr.aria-busy]="initialLoad() || loading()">
+        @if (initialLoad() || (loading() && !result().jobs.length)) {
+          <ng-container [ngTemplateOutlet]="skeletons" />
+        } @else {
+          @for (job of bestMatches(); track job.id) {
+            <ng-container [ngTemplateOutlet]="jobCard" [ngTemplateOutletContext]="{ $implicit: job }" />
+          } @empty {
+            <div class="card empty">
+              <div class="empty__icon"><app-icon name="target" [size]="24" /></div>
+              @if (result().jobs.length) {
+                <h3>No open matches right now</h3>
+                <p>You've applied to every role from your last search. Run a new search, or add roles and keywords in Settings.</p>
+                <div class="empty__actions">
+                  <button class="btn" (click)="showView('jobs')"><app-icon name="briefcase" [size]="15" /> See matching jobs</button>
+                  <a class="btn" routerLink="/settings"><app-icon name="settings" [size]="15" /> Open settings</a>
+                </div>
+              } @else {
+                <h3>No jobs yet</h3>
+                <p>Run a search to find roles that fit your resume.</p>
+                <button class="btn btn--primary" (click)="refresh()" [disabled]="loading()">
+                  <app-icon name="refresh" [size]="15" /> Search now
+                </button>
+              }
+            </div>
+          }
+        }
+      </div>
+    }
+
+    @case ('jobs') {
+      <ng-container [ngTemplateOutlet]="sectionHeader" [ngTemplateOutletContext]="{ title: 'Matching jobs' }" />
+
+      <section class="stats">
+        <div class="card stat">
+          <span class="stat__icon"><app-icon name="briefcase" /></span>
+          <div>
+            <div class="stat__value">{{ stats().total }}</div>
+            <div class="stat__label">Matching jobs</div>
+          </div>
+        </div>
+        <div class="card stat">
+          <span class="stat__icon stat__icon--green"><app-icon name="send" /></span>
+          <div>
+            <div class="stat__value">{{ stats().auto }}</div>
+            <div class="stat__label">Auto-apply eligible</div>
+          </div>
+        </div>
+        <div class="card stat">
+          <span class="stat__icon stat__icon--amber"><app-icon name="check" /></span>
+          <div>
+            <div class="stat__value">{{ stats().applied }}</div>
+            <div class="stat__label">Already applied</div>
+          </div>
+        </div>
+        <div class="card stat">
+          <span class="stat__icon"><app-icon name="target" /></span>
+          <div>
+            <div class="stat__value">{{ stats().avg }}<small>%</small></div>
+            <div class="stat__label">Avg. relevance</div>
+          </div>
+        </div>
+      </section>
+
+      <ng-container [ngTemplateOutlet]="sourceErrors" />
+
+      @if (result().jobs.length) {
+        <div class="toolbar">
+          <div class="input-icon toolbar__search">
+            <app-icon name="search" [size]="16" />
+            <input type="search" placeholder="Search title, company, location…" aria-label="Search jobs" [value]="query()" (input)="onQuery($event)" />
+          </div>
+          <div class="segmented" role="group" aria-label="Filter jobs">
+            @for (f of filters; track f.key) {
+              <button type="button" [class.active]="filter() === f.key" [attr.aria-pressed]="filter() === f.key" (click)="filter.set(f.key)">
+                {{ f.label }} <span class="count"><span class="sr-only">(</span>{{ filterCounts()[f.key] }}<span class="sr-only">)</span></span>
+              </button>
+            }
+          </div>
+          <select class="toolbar__sort" [value]="sort()" (change)="onSort($event)" aria-label="Sort jobs">
+            <option value="relevance">Best match</option>
+            <option value="recent">Most recent</option>
+            <option value="company">Company A–Z</option>
+          </select>
+        </div>
+      }
+
+      <div class="jobs" [attr.aria-busy]="initialLoad() || loading()">
+        @if (initialLoad() || (loading() && !result().jobs.length)) {
+          <ng-container [ngTemplateOutlet]="skeletons" />
+        } @else {
+          @for (job of visibleJobs(); track job.id) {
+            <ng-container [ngTemplateOutlet]="jobCard" [ngTemplateOutletContext]="{ $implicit: job }" />
+          } @empty {
+            @if (result().jobs.length) {
+              <div class="card empty">
+                <div class="empty__icon"><app-icon name="search" [size]="24" /></div>
+                <h3>No jobs match these filters</h3>
+                <p>Try a different search term or switch the filter back to “All”.</p>
+                <button class="btn" (click)="clearFilters()">Clear filters</button>
+              </div>
+            } @else if (!result().errors.length) {
+              <div class="card empty">
+                <div class="empty__icon"><app-icon name="inbox" [size]="24" /></div>
+                <h3>No jobs yet</h3>
+                <p>
+                  Add target roles, keywords and at least one Greenhouse or Lever board in Settings, then run a search.
+                </p>
+                <div class="empty__actions">
+                  <a class="btn" routerLink="/settings"><app-icon name="settings" [size]="15" /> Open settings</a>
+                  <button class="btn btn--primary" (click)="refresh()" [disabled]="loading()">
+                    <app-icon name="refresh" [size]="15" /> Search now
+                  </button>
+                </div>
+              </div>
+            }
+          }
+        }
+      </div>
+    }
+  }
+</div>
+
+<ng-template #sectionHeader let-title="title">
+  <div class="section-header">
+    <div>
+      <h2>{{ title }}</h2>
+      <p class="hint">
         @if (result().aggregatedAt) {
           Last updated {{ result().aggregatedAt | date: 'MMM d, h:mm a' }}
         } @else {
@@ -18,41 +315,12 @@
         <app-icon name="refresh" [size]="16" /> Search now
       }
     </button>
-  </header>
+  </div>
+</ng-template>
 
-  <section class="stats">
-    <div class="card stat">
-      <span class="stat__icon"><app-icon name="briefcase" /></span>
-      <div>
-        <div class="stat__value">{{ stats().total }}</div>
-        <div class="stat__label">Matching jobs</div>
-      </div>
-    </div>
-    <div class="card stat">
-      <span class="stat__icon stat__icon--green"><app-icon name="send" /></span>
-      <div>
-        <div class="stat__value">{{ stats().auto }}</div>
-        <div class="stat__label">Auto-apply eligible</div>
-      </div>
-    </div>
-    <div class="card stat">
-      <span class="stat__icon stat__icon--amber"><app-icon name="check" /></span>
-      <div>
-        <div class="stat__value">{{ stats().applied }}</div>
-        <div class="stat__label">Already applied</div>
-      </div>
-    </div>
-    <div class="card stat">
-      <span class="stat__icon"><app-icon name="target" /></span>
-      <div>
-        <div class="stat__value">{{ stats().avg }}<small>%</small></div>
-        <div class="stat__label">Avg. relevance</div>
-      </div>
-    </div>
-  </section>
-
+<ng-template #sourceErrors>
   @if (result().errors.length) {
-    <div class="alert" role="status">
+    <div class="alert" role="alert">
       <app-icon name="alert" />
       <div>
         <strong>Some sources didn't return results</strong>
@@ -64,151 +332,121 @@
       </div>
     </div>
   }
+</ng-template>
 
-  @if (result().jobs.length) {
-    <div class="toolbar">
-      <div class="input-icon toolbar__search">
-        <app-icon name="search" [size]="16" />
-        <input type="search" placeholder="Search title, company, location…" [value]="query()" (input)="onQuery($event)" />
+<ng-template #skeletons>
+  <p class="sr-only">Loading jobs…</p>
+  @for (i of [1, 2, 3]; track i) {
+    <div class="card job" aria-hidden="true">
+      <div class="skeleton" style="width: 42px; height: 42px; border-radius: 10px"></div>
+      <div class="job__body">
+        <div class="skeleton" style="width: 45%; height: 16px"></div>
+        <div class="skeleton" style="width: 30%; height: 12px; margin-top: 10px"></div>
       </div>
-      <div class="segmented" role="tablist">
-        @for (f of filters; track f.key) {
-          <button role="tab" [class.active]="filter() === f.key" [attr.aria-selected]="filter() === f.key" (click)="filter.set(f.key)">
-            {{ f.label }} <span class="count">{{ filterCounts()[f.key] }}</span>
-          </button>
-        }
-      </div>
-      <select class="toolbar__sort" [value]="sort()" (change)="onSort($event)" aria-label="Sort jobs">
-        <option value="relevance">Best match</option>
-        <option value="recent">Most recent</option>
-        <option value="company">Company A–Z</option>
-      </select>
     </div>
   }
+</ng-template>
 
-  <div class="jobs">
-    @if (initialLoad() || (loading() && !result().jobs.length)) {
-      @for (i of [1, 2, 3]; track i) {
-        <div class="card job">
-          <div class="skeleton" style="width: 42px; height: 42px; border-radius: 10px"></div>
-          <div class="job__body">
-            <div class="skeleton" style="width: 45%; height: 16px"></div>
-            <div class="skeleton" style="width: 30%; height: 12px; margin-top: 10px"></div>
-          </div>
-        </div>
-      }
-    } @else {
-      @for (job of visibleJobs(); track job.id) {
-        <article class="card job" [class.job--applied]="job.alreadyApplied">
-          <div class="avatar" [style.--h]="companyHue(job.company)">{{ companyInitial(job.company) }}</div>
+<ng-template #jobCard let-job>
+  <article class="card job" [class.job--applied]="job.alreadyApplied" [attr.aria-labelledby]="'job-title-' + job.id">
+    <div class="avatar" [style.--h]="companyHue(job.company)" aria-hidden="true">{{ companyInitial(job.company) }}</div>
 
-          <div class="job__body">
-            <div class="job__title-row">
-              <a class="job__title" [href]="job.url" target="_blank" rel="noopener">
-                {{ job.title }}
-                <app-icon name="external" [size]="14" />
-              </a>
-            </div>
-            <div class="job__meta">
-              <span class="job__company">{{ job.company }}</span>
-              @if (job.location) {
-                <span class="job__meta-item"><app-icon name="map-pin" [size]="13" />{{ job.location }}</span>
-              }
-              @if (job.postedAt) {
-                <span class="job__meta-item"><app-icon name="calendar" [size]="13" />{{ job.postedAt | date: 'MMM d' }}</span>
-              }
-            </div>
-            @if (job.snippet) {
-              <p class="job__snippet">{{ job.snippet }}</p>
-            }
-            <div class="job__tags">
-              <span class="badge badge--plain">{{ platformLabel(job) }}</span>
-              @if (tailorOnly()) {
-                <span class="badge badge--amber">You apply</span>
-              } @else if (job.autoSubmitEligible) {
-                <span class="badge badge--green">Auto-submit</span>
-              } @else {
-                <span class="badge badge--amber">You submit</span>
-              }
-            </div>
-          </div>
-
-          <div class="job__side">
-            <div class="relevance" [attr.data-tone]="relevanceTone(job.relevanceScore)" [title]="job.relevanceScore + '% relevance'">
-              <div class="relevance__label">
-                <span>Match</span><strong>{{ job.relevanceScore }}%</strong>
-              </div>
-              <div class="relevance__track"><div class="relevance__fill" [style.width.%]="job.relevanceScore"></div></div>
-            </div>
-
-            @if (tailorOnly()) {
-              <button class="btn btn--primary" (click)="tailorAndDownload(job)" [disabled]="stateFor(job).busy">
-                @if (stateFor(job).busy) {
-                  <span class="spinner"></span> Tailoring…
-                } @else {
-                  <app-icon name="download" [size]="15" /> {{ job.tailored ? 'Download resume' : 'Tailor & Download' }}
-                }
-              </button>
-            } @else if (job.alreadyApplied && !stateFor(job).message) {
-              <span class="applied"><app-icon name="check" [size]="15" /> Applied</span>
-            } @else {
-              <button
-                class="btn"
-                [class.btn--primary]="!job.alreadyApplied"
-                (click)="apply(job)"
-                [disabled]="stateFor(job).busy || job.alreadyApplied"
-              >
-                @if (stateFor(job).busy) {
-                  <span class="spinner"></span> Working…
-                } @else {
-                  <app-icon [name]="job.autoSubmitEligible ? 'send' : 'edit'" [size]="15" /> {{ applyLabel(job) }}
-                }
-              </button>
-            }
-
-            @if (job.tailored) {
-              <button class="btn btn--sm btn--ghost" (click)="previewJob.set(job)">
-                <app-icon name="file" [size]="15" /> View resume
-              </button>
-            } @else if (!job.alreadyApplied && !tailorOnly()) {
-              <button class="btn btn--sm" (click)="tailor(job)" [disabled]="stateFor(job).busy">
-                <app-icon name="sparkles" [size]="15" /> Tailor resume
-              </button>
-            }
-          </div>
-
-          @if (stateFor(job).message) {
-            <p class="job__status" [attr.data-tone]="stateFor(job).tone">{{ stateFor(job).message }}</p>
-          }
-        </article>
-      } @empty {
-        @if (result().jobs.length) {
-          <div class="card empty">
-            <div class="empty__icon"><app-icon name="search" [size]="24" /></div>
-            <h3>No jobs match these filters</h3>
-            <p>Try a different search term or switch the filter back to “All”.</p>
-            <button class="btn" (click)="clearFilters()">Clear filters</button>
-          </div>
-        } @else if (!result().errors.length) {
-          <div class="card empty">
-            <div class="empty__icon"><app-icon name="inbox" [size]="24" /></div>
-            <h3>No jobs yet</h3>
-            <p>
-              Add target roles, keywords and at least one Greenhouse or Lever board in Settings, then run a search.
-            </p>
-            <div class="empty__actions">
-              <a class="btn" routerLink="/settings"><app-icon name="settings" [size]="15" /> Open settings</a>
-              <button class="btn btn--primary" (click)="refresh()" [disabled]="loading()">
-                <app-icon name="refresh" [size]="15" /> Search now
-              </button>
-            </div>
-          </div>
+    <div class="job__body">
+      <h3 class="job__title-row" [id]="'job-title-' + job.id">
+        <a class="job__title" [href]="job.url" target="_blank" rel="noopener">
+          {{ job.title }}
+          <app-icon name="external" [size]="14" />
+          <span class="sr-only">(opens in a new tab)</span>
+        </a>
+      </h3>
+      <div class="job__meta">
+        <span class="job__company">{{ job.company }}</span>
+        @if (job.location) {
+          <span class="job__meta-item"><app-icon name="map-pin" [size]="14" /><span class="sr-only">Location:</span>{{ job.location }}</span>
         }
+        @if (job.postedAt) {
+          <span class="job__meta-item"><app-icon name="calendar" [size]="14" /><span class="sr-only">Posted</span>{{ job.postedAt | date: 'MMM d' }}</span>
+        }
+      </div>
+      @if (job.snippet) {
+        <p class="job__snippet">{{ job.snippet }}</p>
       }
+      <div class="job__tags">
+        <span class="badge badge--plain">{{ platformLabel(job) }}</span>
+        @if (tailorOnly()) {
+          <span class="badge badge--amber">You apply</span>
+        } @else if (job.autoSubmitEligible) {
+          <span class="badge badge--green">Auto-submit</span>
+        } @else {
+          <span class="badge badge--amber">You submit</span>
+        }
+      </div>
+    </div>
+
+    <div class="job__side">
+      <div class="relevance" [attr.data-tone]="relevanceTone(job.relevanceScore)">
+        <div class="relevance__label">
+          <span>Match</span><strong>{{ job.relevanceScore }}%</strong>
+        </div>
+        <div class="relevance__track" aria-hidden="true"><div class="relevance__fill" [style.width.%]="job.relevanceScore"></div></div>
+      </div>
+
+      @if (tailorOnly()) {
+        <button class="btn btn--primary" (click)="tailorAndDownload(job)" [disabled]="stateFor(job).busy" [attr.aria-describedby]="'job-title-' + job.id">
+          @if (stateFor(job).busy) {
+            <span class="spinner"></span> Tailoring…
+          } @else {
+            <app-icon name="download" [size]="15" /> {{ job.tailored ? 'Download resume' : 'Tailor & Download' }}
+          }
+        </button>
+      } @else if (job.alreadyApplied && !stateFor(job).message) {
+        <span class="applied"><app-icon name="check" [size]="15" /> Applied</span>
+      } @else {
+        <button
+          class="btn"
+          [class.btn--primary]="!job.alreadyApplied"
+          (click)="apply(job)"
+          [disabled]="stateFor(job).busy || job.alreadyApplied"
+          [attr.aria-describedby]="'job-title-' + job.id"
+        >
+          @if (stateFor(job).busy) {
+            <span class="spinner"></span> Working…
+          } @else {
+            <app-icon [name]="job.autoSubmitEligible ? 'send' : 'edit'" [size]="15" /> {{ applyLabel(job) }}
+          }
+        </button>
+      }
+
+      @if (job.tailored) {
+        <button class="btn btn--sm btn--ghost" (click)="previewJob.set(job)" [attr.aria-describedby]="'job-title-' + job.id">
+          <app-icon name="file" [size]="15" /> View resume
+        </button>
+      } @else if (!job.alreadyApplied && !tailorOnly()) {
+        <button class="btn btn--sm" (click)="tailor(job)" [disabled]="stateFor(job).busy" [attr.aria-describedby]="'job-title-' + job.id">
+          <app-icon name="sparkles" [size]="15" /> Tailor resume
+        </button>
+      }
+    </div>
+
+    @if (stateFor(job).message) {
+      <p class="job__status" [attr.data-tone]="stateFor(job).tone">
+        @if (stateFor(job).tone === 'success') {
+          <app-icon name="check" [size]="15" />
+        } @else if (stateFor(job).tone === 'error') {
+          <app-icon name="alert" [size]="15" />
+        }
+        {{ stateFor(job).message }}
+      </p>
     }
-  </div>
-</div>
+  </article>
+</ng-template>
 
 @if (previewJob(); as job) {
   <app-resume-preview-dialog [jobId]="job.id" [title]="job.title" [company]="job.company" (closed)="previewJob.set(null)" />
 }
+
+@if (linkPreviewOpen() && linkResult(); as res) {
+  <app-resume-preview-dialog [jobId]="res.jobId" [title]="res.title" [company]="res.company" (closed)="linkPreviewOpen.set(false)" />
+}
+
+<p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement() }}</p>

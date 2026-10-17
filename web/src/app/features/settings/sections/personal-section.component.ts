@@ -38,6 +38,7 @@ type PersonalKey = keyof Profile['personal'];
                 (click)="fetchProfile.emit(source)"
                 [disabled]="importing() !== null || (source === 'github' && !profile().personal.github_url)"
                 [title]="source === 'linkedin' ? 'Fill details from your LinkedIn profile (uses your logged-in Chrome; leave blank for your own profile)' : 'Fill details from your public GitHub profile'"
+                [attr.aria-label]="source === 'linkedin' ? 'Fetch details from LinkedIn' : 'Fetch details from GitHub'"
               >
                 @if (importing() === source) {
                   <span class="spinner"></span>

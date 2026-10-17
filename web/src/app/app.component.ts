@@ -1,5 +1,7 @@
-import { Component, computed, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, DestroyRef, ElementRef, computed, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { IconComponent, IconName } from './shared/icon.component';
 
 type Theme = 'system' | 'light' | 'dark';
@@ -26,8 +28,44 @@ export class AppComponent {
   theme = signal<Theme>(this.readTheme());
   themeLabel = computed(() => ({ system: 'System theme', light: 'Light theme', dark: 'Dark theme' })[this.theme()]);
 
-  constructor() {
+  /** Read out by a live region after each in-app navigation, since SPAs don't trigger a page load. */
+  routeAnnouncement = signal('');
+
+  constructor(
+    router: Router,
+    destroyRef: DestroyRef,
+    private host: ElementRef<HTMLElement>
+  ) {
     this.applyTheme(this.theme());
+
+    let first = true;
+    router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntilDestroyed(destroyRef)
+      )
+      .subscribe(() => {
+        if (first) {
+          first = false;
+          return;
+        }
+        // Move focus to the new page so keyboard and screen reader users start at its content.
+        setTimeout(() => {
+          this.mainEl()?.focus({ preventScroll: true });
+          this.routeAnnouncement.set(document.title.split(' · ')[0]);
+        });
+      });
+  }
+
+  focusMain(event: Event): void {
+    event.preventDefault();
+    const main = this.mainEl();
+    main?.focus();
+    main?.scrollIntoView();
+  }
+
+  private mainEl(): HTMLElement | null {
+    return this.host.nativeElement.querySelector<HTMLElement>('#main');
   }
 
   cycleTheme(): void {

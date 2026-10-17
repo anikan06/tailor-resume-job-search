@@ -4,7 +4,7 @@ import { getDb } from "./db.js";
 /* Every LLM call is logged as a row in the llm_usage table, so token spend can be totalled later. */
 
 /** What an LLM call was made for. */
-export type LlmActivity = "tailor_resume" | "extract_resume" | "import_profile";
+export type LlmActivity = "tailor_resume" | "extract_resume" | "import_profile" | "read_job";
 
 /** Who's asking, passed down to completeText so the call can be attributed. */
 export interface LlmCallContext {

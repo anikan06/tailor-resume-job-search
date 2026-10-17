@@ -1,5 +1,5 @@
 import { completeText, extractJson } from "./llm.js";
-import type { Profile } from "./types.js";
+import type { CareerProfile, Profile } from "./types.js";
 
 export interface TailorContentResult {
   headerTitle: string;
@@ -30,7 +30,7 @@ export async function tailorResumeWithAI(
 RULES:
 - Do NOT invent, exaggerate, or add experience, skills, titles or dates that are not present in the RESUME TEXT or the CANDIDATE PROFILE below.
 - The CANDIDATE PROFILE is the candidate's own up-to-date record: where it differs from the resume text it wins, and anything it adds (skills, languages, extra sections) is true and may be used.
-- Include the candidate's skills and spoken languages as sections when they have any, leading with what matches the JOB DESCRIPTION.
+- Include a Skills section listing EVERY skill in the CANDIDATE PROFILE's "skills" (lead with what matches the JOB DESCRIPTION, but drop none of them), and a Languages section listing EVERY entry in its "languages".
 - You MAY reorder bullets, rephrase for clarity/impact, trim irrelevant content, and foreground the parts of the real experience that match the JOB DESCRIPTION.
 - Keep every claim traceable to something actually in the resume text or the candidate profile.
 - Output ONLY valid JSON, no prose, no markdown fences, matching exactly this shape:
@@ -54,10 +54,52 @@ CANDIDATE PROFILE (JSON, edited by the candidate):
 ${career}` : ""}`;
 
   const jsonText = extractJson(await completeText(prompt, 2000, profile, { activity: "tailor_resume", jobId }));
+  let content: TailorContentResult;
   try {
-    return JSON.parse(jsonText) as TailorContentResult;
+    content = JSON.parse(jsonText) as TailorContentResult;
   } catch (err) {
     throw new Error(`AI tailoring returned non-JSON content that couldn't be parsed: ${(err as Error).message}`);
   }
+  return withProfileSkills(content, profile.career);
+}
+
+const SKILLS_HEADING_RE = /skill|technolog|tech stack|competenc|tools/i;
+const LANGUAGES_HEADING_RE = /language/i;
+
+/**
+ * The AI tends to trim skills it finds irrelevant to the job, but anything the candidate
+ * added on the Profile page (a new framework, a spoken language) must show up on the
+ * resume - so whatever it left out is appended to the matching section here.
+ */
+export function withProfileSkills(content: TailorContentResult, career: CareerProfile | undefined): TailorContentResult {
+  const sections = (content.sections ?? []).map((s) => ({ heading: s.heading, lines: [...(s.lines ?? [])] }));
+  const isLanguages = (h: string) => LANGUAGES_HEADING_RE.test(h) && !/programming/i.test(h);
+  const skillsSection = sections.find((s) => SKILLS_HEADING_RE.test(s.heading) && !isLanguages(s.heading));
+  const languagesSection = sections.find((s) => isLanguages(s.heading));
+
+  // Programming languages often sit under a "Programming Languages" heading, so search all skill-ish sections.
+  const skillText = sections.filter((s) => SKILLS_HEADING_RE.test(s.heading) || LANGUAGES_HEADING_RE.test(s.heading)).flatMap((s) => s.lines);
+  const missingSkills = (career?.skills ?? []).filter((skill) => skill.trim() && !mentions(skillText, skill));
+  if (missingSkills.length) {
+    if (skillsSection) skillsSection.lines.push(missingSkills.join(", "));
+    else sections.push({ heading: "Skills", lines: [missingSkills.join(", ")] });
+  }
+
+  const missingLanguages = (career?.languages ?? [])
+    .filter((l) => l.name?.trim() && !mentions(languagesSection?.lines ?? [], l.name))
+    .map((l) => (l.proficiency ? `${l.name} (${l.proficiency})` : l.name!));
+  if (missingLanguages.length) {
+    if (languagesSection) languagesSection.lines.push(missingLanguages.join(", "));
+    else sections.push({ heading: "Languages", lines: [missingLanguages.join(", ")] });
+  }
+
+  return { ...content, sections };
+}
+
+/** Whole-term, case-insensitive match, so "Java" isn't found inside "JavaScript" nor "C" inside "C++". */
+function mentions(lines: string[], term: string): boolean {
+  const escaped = term.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(?<![\\w+#.])${escaped}(?![\\w+#])`, "i");
+  return lines.some((line) => re.test(line));
 }
 

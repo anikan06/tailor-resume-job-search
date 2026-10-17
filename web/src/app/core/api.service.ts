@@ -6,6 +6,10 @@ import {
   ApplicationRecord,
   ApplyResult,
   CareerProfile,
+  JobPostingPreview,
+  JobSections,
+  LinkTailorRequest,
+  LinkTailorResult,
   Profile,
   ResumeExtraction,
   ResumeInfo,
@@ -65,6 +69,21 @@ export class ApiService {
 
   tailorJob(jobId: string): Observable<{ jobId: string; pdfUrl: string }> {
     return this.http.post<{ jobId: string; pdfUrl: string }>(`${BASE}/jobs/${jobId}/tailor`, {});
+  }
+
+  /** Reads a job posting link: its description plus a guessed title and company. */
+  getJobPosting(url: string): Observable<JobPostingPreview> {
+    return this.http.post<JobPostingPreview>(`${BASE}/job-posting`, { url });
+  }
+
+  /** Key responsibilities and must-have skills from a pasted job description. */
+  extractJobSections(description: string): Observable<JobSections> {
+    return this.http.post<JobSections>(`${BASE}/job-sections`, { description });
+  }
+
+  /** Tailors the resume for any job posting link (Workday, a careers page, ...) for the user to apply with. */
+  tailorFromLink(request: LinkTailorRequest): Observable<LinkTailorResult> {
+    return this.http.post<LinkTailorResult>(`${BASE}/tailor-from-link`, request);
   }
 
   /** Inline URL for previewing a job's tailored PDF. */

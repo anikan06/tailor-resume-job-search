@@ -10,17 +10,17 @@ import { IconComponent } from './icon.component';
   imports: [IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <dialog #dialog class="dialog" (close)="closed.emit()" (click)="onBackdropClick($event)">
+    <dialog #dialog class="dialog" aria-labelledby="resume-dialog-title" (close)="closed.emit()" (click)="onBackdropClick($event)">
       <header class="dialog__head">
         <span class="dialog__icon"><app-icon name="file" [size]="18" /></span>
         <div class="dialog__title">
-          <strong>Tailored resume</strong>
+          <strong id="resume-dialog-title">Tailored resume</strong>
           <span>{{ title() }} &middot; {{ company() }}</span>
         </div>
         <a class="btn btn--primary btn--sm" [href]="downloadUrl()" download>
           <app-icon name="download" [size]="15" /> Download PDF
         </a>
-        <button class="btn btn--ghost btn--icon" (click)="dialog.close()" aria-label="Close">
+        <button type="button" class="btn btn--ghost btn--icon" (click)="dialog.close()" aria-label="Close preview">
           <app-icon name="x" [size]="18" />
         </button>
       </header>

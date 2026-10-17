@@ -22,8 +22,9 @@ import { Profile } from '../../../core/models';
           [value]="schedule.cron ?? ''"
           (change)="schedule.cron = $any($event.target).value"
           placeholder="0 7 * * *"
+          aria-describedby="cron-help"
         />
-        <p class="field__help"><code>0 7 * * *</code> runs every day at 7:00 AM.</p>
+        <p class="field__help" id="cron-help"><code>0 7 * * *</code> runs every day at 7:00 AM.</p>
       </div>
     }
   `

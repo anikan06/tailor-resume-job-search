@@ -18,6 +18,8 @@
 }
 
 .table-scroll {
+  /* Positioned so visually-hidden text in cells is clipped with the table instead of widening the page. */
+  position: relative;
   overflow-x: auto;
 }
 
@@ -116,14 +118,6 @@ th {
   text-align: center;
   color: var(--text-3);
   padding: 2.5rem 1rem;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
 }
 
 .th-link {

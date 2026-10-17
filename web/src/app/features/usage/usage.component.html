@@ -153,7 +153,12 @@
           <h2>Last 14 days</h2>
           <span class="hint">Avg call time {{ formatDuration(averageDurationMs()) }}</span>
         </div>
-        <div class="chart" role="img" aria-label="Tokens per day over the last 14 days">
+        <ul class="sr-only" aria-label="Tokens per day over the last 14 days">
+          @for (d of days(); track d.day) {
+            <li>{{ d.date | date: 'MMMM d' }}: {{ d.totals ? formatTokens(d.totals.totalTokens) + ' tokens' : 'no calls' }}</li>
+          }
+        </ul>
+        <div class="chart" aria-hidden="true">
           @for (d of days(); track d.day) {
             <div class="chart__col" [title]="dayTitle(d)">
               <span class="chart__value">{{ d.totals ? formatTokens(d.totals.totalTokens) : '' }}</span>
@@ -172,10 +177,10 @@
           <table>
             <thead>
               <tr>
-                <th>Activity</th>
-                <th class="right">Calls</th>
-                <th class="right">Tokens</th>
-                <th class="share-col">Share</th>
+                <th scope="col">Activity</th>
+                <th scope="col" class="right">Calls</th>
+                <th scope="col" class="right">Tokens</th>
+                <th scope="col" class="share-col">Share</th>
               </tr>
             </thead>
             <tbody>
@@ -184,7 +189,7 @@
                   <td>{{ a.label }}</td>
                   <td class="right muted">{{ a.totals.calls }}@if (a.totals.failedCalls) {<span class="failed"> · {{ a.totals.failedCalls }} failed</span>}</td>
                   <td class="right" [title]="tokenTitle(a.totals)">{{ formatTokens(a.totals.totalTokens) }}</td>
-                  <td class="share-col"><div class="share"><div class="share__fill" [style.width.%]="a.share"></div></div></td>
+                  <td class="share-col"><div class="share" aria-hidden="true"><div class="share__fill" [style.width.%]="a.share"></div></div><span class="sr-only">{{ a.share | number: '1.0-0' }}%</span></td>
                 </tr>
               }
             </tbody>
@@ -196,10 +201,10 @@
           <table>
             <thead>
               <tr>
-                <th>Model</th>
-                <th class="right">Calls</th>
-                <th class="right">Tokens</th>
-                <th class="share-col">Share</th>
+                <th scope="col">Model</th>
+                <th scope="col" class="right">Calls</th>
+                <th scope="col" class="right">Tokens</th>
+                <th scope="col" class="share-col">Share</th>
               </tr>
             </thead>
             <tbody>
@@ -208,7 +213,7 @@
                   <td class="mono">{{ m.label }}</td>
                   <td class="right muted">{{ m.totals.calls }}@if (m.totals.failedCalls) {<span class="failed"> · {{ m.totals.failedCalls }} failed</span>}</td>
                   <td class="right" [title]="tokenTitle(m.totals)">{{ formatTokens(m.totals.totalTokens) }}</td>
-                  <td class="share-col"><div class="share"><div class="share__fill" [style.width.%]="m.share"></div></div></td>
+                  <td class="share-col"><div class="share" aria-hidden="true"><div class="share__fill" [style.width.%]="m.share"></div></div><span class="sr-only">{{ m.share | number: '1.0-0' }}%</span></td>
                 </tr>
               }
             </tbody>
@@ -219,10 +224,10 @@
       <section class="card table-card">
         <div class="table-toolbar">
           <h2>Recent calls <span class="hint">(last {{ recentLimit }})</span></h2>
-          <div class="segmented" role="tablist">
+          <div class="segmented" role="group" aria-label="Filter calls">
             @for (f of filters; track f.key) {
-              <button role="tab" [class.active]="filter() === f.key" [attr.aria-selected]="filter() === f.key" (click)="filter.set(f.key)">
-                {{ f.label }} <span class="count">{{ counts()[f.key] }}</span>
+              <button type="button" [class.active]="filter() === f.key" [attr.aria-pressed]="filter() === f.key" (click)="filter.set(f.key)">
+                {{ f.label }} <span class="count"><span class="sr-only">(</span>{{ counts()[f.key] }}<span class="sr-only">)</span></span>
               </button>
             }
           </div>
@@ -231,15 +236,15 @@
           <table>
             <thead>
               <tr>
-                <th>When</th>
-                <th>Activity</th>
-                <th>Model</th>
-                <th class="right">Input</th>
-                <th class="right">Output</th>
-                <th class="right">Total</th>
-                <th class="right">Time</th>
-                <th>Status</th>
-                <th><span class="sr-only">Details</span></th>
+                <th scope="col">When</th>
+                <th scope="col">Activity</th>
+                <th scope="col">Model</th>
+                <th scope="col" class="right">Input</th>
+                <th scope="col" class="right">Output</th>
+                <th scope="col" class="right">Total</th>
+                <th scope="col" class="right">Time</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="sr-only">Details</span></th>
               </tr>
             </thead>
             <tbody>
@@ -280,7 +285,9 @@
                   </td>
                   <td class="right">
                     <button
+                      type="button"
                       class="btn btn--ghost btn--icon expander"
+                      [attr.aria-controls]="expanded() === c ? 'call-details-' + $index : null"
                       [attr.aria-expanded]="expanded() === c"
                       [attr.aria-label]="expanded() === c ? 'Hide details' : 'Show details'"
                     >
@@ -289,7 +296,7 @@
                   </td>
                 </tr>
                 @if (expanded() === c) {
-                  <tr class="details-row">
+                  <tr class="details-row" [id]="'call-details-' + $index">
                     <td colspan="9">
                       <dl class="details">
                         @for (d of detailRows(c); track d.label) {
