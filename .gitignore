@@ -1,0 +1,12 @@
+server/node_modules/
+server/dist/
+server/data/uploads/
+server/data/tailored/
+server/data/applications.json
+server/data/jobs-cache.json
+server/data/state.json
+server/config/profile.yaml
+web/node_modules/
+web/dist/
+web/.angular/
+.DS_Store

@@ -1,0 +1,273 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Configuration</p>
+      <h1>Settings</h1>
+      <p class="subtitle">
+        Everything here is optional, but filling it in once makes matching and one-click apply much better.
+      </p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Settings sections">
+      @for (s of sections; track s.id) {
+        <button class="toc__item" [class.active]="activeSection() === s.id" (click)="scrollTo(s.id)">
+          <app-icon [name]="s.icon" [size]="16" />
+          {{ s.label }}
+        </button>
+      }
+    </nav>
+
+    <div class="sections">
+      <!-- Resume -->
+      <section id="resume" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="file" /></span>
+          <div>
+            <h2>Resume</h2>
+            <p class="hint">The base resume that gets tailored for each job description.</p>
+          </div>
+        </div>
+
+        @if (resume().uploaded) {
+          <div class="resume-current">
+            <span class="resume-current__icon"><app-icon name="file" [size]="20" /></span>
+            <div class="resume-current__text">
+              <strong>{{ resume().fileName }}</strong>
+              <span>{{ resume().length | number }} characters extracted</span>
+            </div>
+            @if (confirmingDelete()) {
+              <span class="resume-current__confirm">Delete this resume?</span>
+              <button class="btn btn--sm btn--ghost" (click)="confirmingDelete.set(false)" [disabled]="deleting()">Cancel</button>
+              <button class="btn btn--sm btn--danger-solid" (click)="deleteResume()" [disabled]="deleting()">
+                @if (deleting()) {
+                  <span class="spinner"></span>
+                } @else {
+                  <app-icon name="trash" [size]="14" />
+                }
+                Delete
+              </button>
+            } @else {
+              <span class="badge badge--green">Active</span>
+              <button
+                class="btn btn--ghost btn--icon btn--danger"
+                (click)="confirmingDelete.set(true)"
+                [disabled]="uploading()"
+                title="Delete resume"
+                aria-label="Delete resume"
+              >
+                <app-icon name="trash" [size]="16" />
+              </button>
+            }
+          </div>
+          @if (resume().preview) {
+            <p class="preview">{{ resume().preview }}&hellip;</p>
+          }
+        }
+
+        <label
+          class="dropzone"
+          [class.dropzone--active]="dragging()"
+          [class.dropzone--busy]="uploading()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="dragging.set(false)"
+          (drop)="onDrop($event)"
+        >
+          <input type="file" accept=".pdf,.docx,.txt,.md" (change)="onResumeSelected($event)" [disabled]="uploading()" />
+          @if (uploading()) {
+            <span class="spinner"></span>
+            <span class="dropzone__title">Uploading and extracting text&hellip;</span>
+          } @else {
+            <span class="dropzone__icon"><app-icon name="upload" [size]="20" /></span>
+            <span class="dropzone__title">
+              <strong>{{ resume().uploaded ? 'Replace resume' : 'Upload your resume' }}</strong> &mdash; drag &amp; drop or click to browse
+            </span>
+            <span class="dropzone__hint">PDF, DOCX, TXT or Markdown</span>
+          }
+        </label>
+
+        @if (prefilled().size) {
+          <div class="prefill-banner" role="status">
+            <app-icon name="sparkles" [size]="18" />
+            <div class="prefill-banner__text">
+              <strong>Filled {{ prefilled().size }} field{{ prefilled().size === 1 ? '' : 's' }} from your {{ prefillSource() }}</strong>
+              <span>Review the highlighted details below, pick your target roles, then save.</span>
+            </div>
+            <button class="btn btn--sm btn--ghost" (click)="undoPrefill()">Undo</button>
+            <button class="btn btn--sm" (click)="scrollTo('search')">Choose roles</button>
+          </div>
+        }
+      </section>
+
+      <!-- Personal -->
+      <section id="personal" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="user" /></span>
+          <div>
+            <h2>Personal details</h2>
+            <p class="hint">Used to fill standard fields on application forms.</p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-personal-section
+            [profile]="profile()"
+            [prefilled]="prefilled()"
+            [prefillSource]="prefillSource()"
+            [importing]="importing()"
+            (fetchProfile)="importProfile($event)"
+          />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(5); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+
+      <!-- Search -->
+      <section id="search" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="target" /></span>
+          <div>
+            <h2>What you're looking for</h2>
+            <p class="hint">Separate multiple values with commas.</p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-search-section [profile]="profile()" [extracted]="resume().extracted" />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(4); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+
+      <!-- Boards -->
+      <section id="boards" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="building" /></span>
+          <div>
+            <h2>Company career pages</h2>
+            <p class="hint">Greenhouse and Lever board slugs to track &mdash; auto-apply is allowed on these.</p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-boards-section [profile]="profile()" />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(1); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+
+      <!-- AI -->
+      <section id="ai" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="sparkles" /></span>
+          <div>
+            <h2>AI resume tailoring</h2>
+            <p class="hint">
+              Use Claude, ChatGPT (OpenAI), Gemini or a free local model to tailor resume content per job. Keys are
+              stored locally in <code>config/profile.yaml</code> and only sent to the provider you pick.
+            </p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-ai-section [profile]="profile()" [(apiKey)]="apiKeyInput" />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(1); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+
+      <!-- Custom answers -->
+      <section id="answers" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="message" /></span>
+          <div>
+            <h2>Application question answers</h2>
+            <p class="hint">
+              Matched against form field labels when applying. Anything that doesn't match is left blank for you
+              rather than guessed.
+            </p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-answers-section [profile]="profile()" />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(2); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+
+      <!-- Schedule -->
+      <section id="schedule" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="calendar" /></span>
+          <div>
+            <h2>Background search</h2>
+            <p class="hint">Keep the dashboard fresh without clicking “Search now”.</p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-schedule-section [profile]="profile()" />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(1); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="savebar">
+  <div class="savebar__inner">
+    @if (saveMessage(); as m) {
+      <span class="savebar__msg" [attr.data-tone]="m.tone">
+        <app-icon [name]="m.tone === 'success' ? 'check' : 'alert'" [size]="16" /> {{ m.text }}
+      </span>
+    } @else {
+      <span class="savebar__msg">Changes are saved to your local profile.</span>
+    }
+    <button class="btn btn--primary" (click)="save()" [disabled]="saving()">
+      @if (saving()) {
+        <span class="spinner"></span> Saving…
+      } @else {
+        <app-icon name="check" [size]="16" /> Save settings
+      }
+    </button>
+  </div>
+</div>

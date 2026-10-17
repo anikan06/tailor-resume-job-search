@@ -1,0 +1,127 @@
+.table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-toolbar__search {
+  flex: 0 1 280px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr {
+  transition: background 0.12s;
+
+  &:hover {
+    background: var(--surface-hover);
+  }
+}
+
+th {
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+.right {
+  text-align: right;
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+.capitalize {
+  text-transform: capitalize;
+}
+
+.nowrap {
+  white-space: nowrap;
+
+  small {
+    display: block;
+    color: var(--text-3);
+    font-size: 0.78rem;
+  }
+}
+
+.role {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 240px;
+}
+
+.role__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.role__title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.role__company {
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+
+.role__note {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.no-rows {
+  text-align: center;
+  color: var(--text-3);
+  padding: 2.5rem 1rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

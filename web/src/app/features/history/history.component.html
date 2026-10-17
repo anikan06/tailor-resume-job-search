@@ -1,0 +1,121 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Tracker</p>
+      <h1>Application history</h1>
+      <p class="subtitle">Every role the agent has tailored a resume for and applied to.</p>
+    </div>
+  </header>
+
+  <section class="stats">
+    <div class="card stat">
+      <span class="stat__icon"><app-icon name="briefcase" /></span>
+      <div>
+        <div class="stat__value">{{ counts().all }}</div>
+        <div class="stat__label">Total applications</div>
+      </div>
+    </div>
+    <div class="card stat">
+      <span class="stat__icon stat__icon--green"><app-icon name="send" /></span>
+      <div>
+        <div class="stat__value">{{ counts().submitted }}</div>
+        <div class="stat__label">Submitted</div>
+      </div>
+    </div>
+    <div class="card stat">
+      <span class="stat__icon stat__icon--amber"><app-icon name="edit" /></span>
+      <div>
+        <div class="stat__value">{{ counts().prefilled }}</div>
+        <div class="stat__label">Prefilled</div>
+      </div>
+    </div>
+    <div class="card stat">
+      <span class="stat__icon stat__icon--red"><app-icon name="alert" /></span>
+      <div>
+        <div class="stat__value">{{ counts().failed }}</div>
+        <div class="stat__label">Failed</div>
+      </div>
+    </div>
+  </section>
+
+  @if (loaded() && records().length === 0) {
+    <div class="card empty">
+      <div class="empty__icon"><app-icon name="clock" [size]="24" /></div>
+      <h3>Nothing applied to yet</h3>
+      <p>Once you tailor and apply to a job from the dashboard, it will show up here.</p>
+      <a class="btn btn--primary" routerLink="/dashboard"><app-icon name="grid" [size]="15" /> Go to dashboard</a>
+    </div>
+  } @else if (records().length) {
+    <div class="card table-card">
+      <div class="table-toolbar">
+        <div class="segmented" role="tablist">
+          @for (f of filters; track f.key) {
+            <button role="tab" [class.active]="filter() === f.key" [attr.aria-selected]="filter() === f.key" (click)="filter.set(f.key)">
+              {{ f.label }} <span class="count">{{ counts()[f.key] }}</span>
+            </button>
+          }
+        </div>
+        <div class="input-icon table-toolbar__search">
+          <app-icon name="search" [size]="16" />
+          <input type="search" placeholder="Filter by role or company" [value]="query()" (input)="onQuery($event)" />
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Platform</th>
+              <th>Status</th>
+              <th>Applied</th>
+              <th class="right"><span class="sr-only">Link</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of visible(); track r.id) {
+              <tr>
+                <td>
+                  <div class="role">
+                    <div class="avatar avatar--sm" [style.--h]="companyHue(r.company)">{{ companyInitial(r.company) }}</div>
+                    <div class="role__text">
+                      <span class="role__title">{{ r.title }}</span>
+                      <span class="role__company">{{ r.company }}</span>
+                      @if (r.note) {
+                        <span class="role__note" [title]="r.note">{{ r.note }}</span>
+                      }
+                    </div>
+                  </div>
+                </td>
+                <td class="muted">{{ platformLabel(r.platform) }}</td>
+                <td><span [class]="statusBadgeClass(r.status)">{{ statusLabel(r.status) }}</span></td>
+                <td class="muted nowrap">
+                  {{ r.appliedAt | date: 'MMM d, y' }}
+                  <small>{{ r.appliedAt | date: 'h:mm a' }}</small>
+                </td>
+                <td class="right nowrap">
+                  @if (r.tailored) {
+                    <button class="btn btn--ghost btn--icon" (click)="previewRecord.set(r)" title="View tailored resume">
+                      <app-icon name="file" [size]="16" />
+                    </button>
+                  }
+                  <a class="btn btn--ghost btn--icon" [href]="r.url" target="_blank" rel="noopener" title="Open job posting">
+                    <app-icon name="external" [size]="16" />
+                  </a>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="no-rows">No applications match this filter.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>
+
+@if (previewRecord(); as r) {
+  <app-resume-preview-dialog [jobId]="r.id" [title]="r.title" [company]="r.company" (closed)="previewRecord.set(null)" />
+}

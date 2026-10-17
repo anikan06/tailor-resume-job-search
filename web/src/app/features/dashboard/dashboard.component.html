@@ -1,0 +1,204 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Overview</p>
+      <h1>Matching jobs</h1>
+      <p class="subtitle">
+        @if (result().aggregatedAt) {
+          Last updated {{ result().aggregatedAt | date: 'MMM d, h:mm a' }}
+        } @else {
+          Run a search to pull fresh roles from your tracked boards and job sites.
+        }
+      </p>
+    </div>
+    <button class="btn btn--primary" (click)="refresh()" [disabled]="loading()">
+      @if (loading()) {
+        <span class="spinner"></span> Searching…
+      } @else {
+        <app-icon name="refresh" [size]="16" /> Search now
+      }
+    </button>
+  </header>
+
+  <section class="stats">
+    <div class="card stat">
+      <span class="stat__icon"><app-icon name="briefcase" /></span>
+      <div>
+        <div class="stat__value">{{ stats().total }}</div>
+        <div class="stat__label">Matching jobs</div>
+      </div>
+    </div>
+    <div class="card stat">
+      <span class="stat__icon stat__icon--green"><app-icon name="send" /></span>
+      <div>
+        <div class="stat__value">{{ stats().auto }}</div>
+        <div class="stat__label">Auto-apply eligible</div>
+      </div>
+    </div>
+    <div class="card stat">
+      <span class="stat__icon stat__icon--amber"><app-icon name="check" /></span>
+      <div>
+        <div class="stat__value">{{ stats().applied }}</div>
+        <div class="stat__label">Already applied</div>
+      </div>
+    </div>
+    <div class="card stat">
+      <span class="stat__icon"><app-icon name="target" /></span>
+      <div>
+        <div class="stat__value">{{ stats().avg }}<small>%</small></div>
+        <div class="stat__label">Avg. relevance</div>
+      </div>
+    </div>
+  </section>
+
+  @if (result().errors.length) {
+    <div class="alert" role="status">
+      <app-icon name="alert" />
+      <div>
+        <strong>Some sources didn't return results</strong>
+        <ul>
+          @for (e of result().errors; track e.source) {
+            <li><code>{{ e.source }}</code> {{ e.message }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  @if (result().jobs.length) {
+    <div class="toolbar">
+      <div class="input-icon toolbar__search">
+        <app-icon name="search" [size]="16" />
+        <input type="search" placeholder="Search title, company, location…" [value]="query()" (input)="onQuery($event)" />
+      </div>
+      <div class="segmented" role="tablist">
+        @for (f of filters; track f.key) {
+          <button role="tab" [class.active]="filter() === f.key" [attr.aria-selected]="filter() === f.key" (click)="filter.set(f.key)">
+            {{ f.label }} <span class="count">{{ filterCounts()[f.key] }}</span>
+          </button>
+        }
+      </div>
+      <select class="toolbar__sort" [value]="sort()" (change)="onSort($event)" aria-label="Sort jobs">
+        <option value="relevance">Best match</option>
+        <option value="recent">Most recent</option>
+        <option value="company">Company A–Z</option>
+      </select>
+    </div>
+  }
+
+  <div class="jobs">
+    @if (initialLoad() || (loading() && !result().jobs.length)) {
+      @for (i of [1, 2, 3]; track i) {
+        <div class="card job">
+          <div class="skeleton" style="width: 42px; height: 42px; border-radius: 10px"></div>
+          <div class="job__body">
+            <div class="skeleton" style="width: 45%; height: 16px"></div>
+            <div class="skeleton" style="width: 30%; height: 12px; margin-top: 10px"></div>
+          </div>
+        </div>
+      }
+    } @else {
+      @for (job of visibleJobs(); track job.id) {
+        <article class="card job" [class.job--applied]="job.alreadyApplied">
+          <div class="avatar" [style.--h]="companyHue(job.company)">{{ companyInitial(job.company) }}</div>
+
+          <div class="job__body">
+            <div class="job__title-row">
+              <a class="job__title" [href]="job.url" target="_blank" rel="noopener">
+                {{ job.title }}
+                <app-icon name="external" [size]="14" />
+              </a>
+            </div>
+            <div class="job__meta">
+              <span class="job__company">{{ job.company }}</span>
+              @if (job.location) {
+                <span class="job__meta-item"><app-icon name="map-pin" [size]="13" />{{ job.location }}</span>
+              }
+              @if (job.postedAt) {
+                <span class="job__meta-item"><app-icon name="calendar" [size]="13" />{{ job.postedAt | date: 'MMM d' }}</span>
+              }
+            </div>
+            @if (job.snippet) {
+              <p class="job__snippet">{{ job.snippet }}</p>
+            }
+            <div class="job__tags">
+              <span class="badge badge--plain">{{ platformLabel(job) }}</span>
+              @if (job.autoSubmitEligible) {
+                <span class="badge badge--green">Auto-submit</span>
+              } @else {
+                <span class="badge badge--amber">You submit</span>
+              }
+            </div>
+          </div>
+
+          <div class="job__side">
+            <div class="relevance" [attr.data-tone]="relevanceTone(job.relevanceScore)" [title]="job.relevanceScore + '% relevance'">
+              <div class="relevance__label">
+                <span>Match</span><strong>{{ job.relevanceScore }}%</strong>
+              </div>
+              <div class="relevance__track"><div class="relevance__fill" [style.width.%]="job.relevanceScore"></div></div>
+            </div>
+
+            @if (job.alreadyApplied && !stateFor(job).message) {
+              <span class="applied"><app-icon name="check" [size]="15" /> Applied</span>
+            } @else {
+              <button
+                class="btn"
+                [class.btn--primary]="!job.alreadyApplied"
+                (click)="apply(job)"
+                [disabled]="stateFor(job).busy || job.alreadyApplied"
+              >
+                @if (stateFor(job).busy) {
+                  <span class="spinner"></span> Working…
+                } @else {
+                  <app-icon [name]="job.autoSubmitEligible ? 'send' : 'edit'" [size]="15" /> {{ applyLabel(job) }}
+                }
+              </button>
+            }
+
+            @if (job.tailored) {
+              <button class="btn btn--sm btn--ghost" (click)="previewJob.set(job)">
+                <app-icon name="file" [size]="15" /> View resume
+              </button>
+            } @else if (!job.alreadyApplied) {
+              <button class="btn btn--sm" (click)="tailor(job)" [disabled]="stateFor(job).busy">
+                <app-icon name="sparkles" [size]="15" /> Tailor resume
+              </button>
+            }
+          </div>
+
+          @if (stateFor(job).message) {
+            <p class="job__status" [attr.data-tone]="stateFor(job).tone">{{ stateFor(job).message }}</p>
+          }
+        </article>
+      } @empty {
+        @if (result().jobs.length) {
+          <div class="card empty">
+            <div class="empty__icon"><app-icon name="search" [size]="24" /></div>
+            <h3>No jobs match these filters</h3>
+            <p>Try a different search term or switch the filter back to “All”.</p>
+            <button class="btn" (click)="clearFilters()">Clear filters</button>
+          </div>
+        } @else if (!result().errors.length) {
+          <div class="card empty">
+            <div class="empty__icon"><app-icon name="inbox" [size]="24" /></div>
+            <h3>No jobs yet</h3>
+            <p>
+              Add target roles, keywords and at least one Greenhouse or Lever board in Settings, then run a search.
+            </p>
+            <div class="empty__actions">
+              <a class="btn" routerLink="/settings"><app-icon name="settings" [size]="15" /> Open settings</a>
+              <button class="btn btn--primary" (click)="refresh()" [disabled]="loading()">
+                <app-icon name="refresh" [size]="15" /> Search now
+              </button>
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+</div>
+
+@if (previewJob(); as job) {
+  <app-resume-preview-dialog [jobId]="job.id" [title]="job.title" [company]="job.company" (closed)="previewJob.set(null)" />
+}

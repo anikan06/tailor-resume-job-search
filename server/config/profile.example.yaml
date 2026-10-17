@@ -1,0 +1,62 @@
+# job-search-agent profile
+# Copy this file to profile.yaml (same folder) and fill in your own details.
+# profile.yaml is gitignored - it's yours alone, never committed.
+#
+# This file does NOT ask for your LinkedIn/Naukri/Indeed password. The agent
+# drives your own already-logged-in Chrome (see README "Browser setup"), so
+# there are no credentials to store or leak here.
+
+personal:
+  full_name: "Jane Doe"
+  email: "jane@example.com"
+  phone: "+91-90000-00000"
+  location: "Bangalore, India"
+  linkedin_url: "https://www.linkedin.com/in/janedoe"
+  portfolio_url: ""
+  github_url: ""
+  years_experience: 5
+  notice_period_days: 30
+  current_ctc: ""        # leave blank to skip / have the agent leave the field for you
+  expected_ctc: ""
+  work_authorization: "Authorized to work in India, no sponsorship needed"
+  willing_to_relocate: true
+
+# What you're looking for. All optional - an empty search_keywords means the
+# agent will ask you (or the LLM driving it) for keywords/role at run time
+# rather than guessing.
+search:
+  target_roles:
+    - "Frontend Lead"
+    - "Angular Architect"
+  keywords:
+    - "Angular"
+    - "micro frontends"
+  locations:
+    - "Bangalore"
+    - "Remote - India"
+  remote_ok: true
+  min_years_experience: null
+  exclude_companies: []
+
+# Freeform answers the agent can use to fill common application questions
+# it meets on ATS forms (Greenhouse/Lever/Workday) or to prefill LinkedIn/
+# Naukri/Indeed fields. Matching is best-effort (substring/keyword match on
+# the question text) - anything it can't confidently match is left BLANK
+# for you to fill in yourself, never guessed.
+custom_question_answers:
+  - question_contains: "authorized to work"
+    answer: "Yes"
+  - question_contains: "require sponsorship"
+    answer: "No"
+  - question_contains: "willing to relocate"
+    answer: "Yes"
+  - question_contains: "notice period"
+    answer: "30 days"
+  - question_contains: "years of experience"
+    answer: "5"
+
+# Where to find the resume(s) to use as the base for tailoring. Any of these
+# can instead be passed per-call to the MCP tools, which always take
+# precedence - this is just a convenient default.
+resume:
+  default_path: "./resume.pdf"

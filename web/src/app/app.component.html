@@ -1,0 +1,31 @@
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" routerLink="/dashboard">
+      <span class="brand__mark"><app-icon name="sparkles" [size]="18" /></span>
+      <span class="brand__text">
+        <strong>Job Search Agent</strong>
+        <small>Tailor &middot; Apply &middot; Track</small>
+      </span>
+    </a>
+
+    <nav class="nav">
+      @for (item of nav; track item.path) {
+        <a [routerLink]="item.path" routerLinkActive="active" class="nav__item">
+          <app-icon [name]="item.icon" />
+          <span>{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+
+    <div class="sidebar__footer">
+      <button class="theme-toggle" (click)="cycleTheme()" [attr.aria-label]="'Theme: ' + theme()">
+        <span class="theme-toggle__dot" [attr.data-mode]="theme()"></span>
+        <span>{{ themeLabel() }}</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

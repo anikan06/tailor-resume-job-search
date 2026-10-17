@@ -1,0 +1,43 @@
+{
+  "name": "job-search-agent-server",
+  "version": "0.2.0",
+  "description": "Resume-agnostic job search/apply engine. Exposes both an MCP server (for Claude Desktop/Code) and an HTTP API (for the job-search-agent Angular app).",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "job-search-agent": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node dist/index.js",
+    "start:api": "node dist/httpServer.js",
+    "dev:api": "tsc -p . && node dist/httpServer.js"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "playwright": "^1.49.1",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.8.0",
+    "docx": "^9.0.3",
+    "yaml": "^2.6.1",
+    "zod": "^3.24.1",
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "multer": "^2.0.1",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/multer": "^1.4.12",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.7.2"
+  }
+}
