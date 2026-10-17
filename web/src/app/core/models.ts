@@ -305,6 +305,31 @@ export interface QuickTailorResult {
   ats: AtsReport;
 }
 
+/** A rendered resume's text: one role/project/degree. */
+export interface ResumeEntry {
+  title: string;
+  organization?: string;
+  location?: string;
+  dates?: string;
+  bullets?: string[];
+}
+
+export interface ResumeSection {
+  heading: string;
+  /** List lines (skills, certifications...). */
+  lines?: string[];
+  entries?: ResumeEntry[];
+}
+
+/** Everything a rendered resume says, editable before re-rendering. */
+export interface ResumeContent {
+  headerTitle: string;
+  headline?: string;
+  contactLine: string;
+  summary: string;
+  sections: ResumeSection[];
+}
+
 /** The Profile page's general (not job-specific) ATS resume. */
 export interface ProfileResumeResult {
   jobId: string;
@@ -312,6 +337,7 @@ export interface ProfileResumeResult {
   headline: string;
   pdfUrl: string;
   docxUrl: string;
+  content: ResumeContent;
 }
 
 /** What the server read from a pasted job link, shown for the user to check before tailoring. */
