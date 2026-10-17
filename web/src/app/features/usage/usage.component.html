@@ -222,6 +222,121 @@
       </div>
 
       <section class="card table-card">
+        <div class="section-head section-head--pad">
+          <h2>Performance by activity</h2>
+          <span class="hint">Times are for successful calls</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Activity</th>
+                <th scope="col" class="right" title="Average input tokens per call">Avg in</th>
+                <th scope="col" class="right" title="Average visible output tokens per call">Avg out</th>
+                <th scope="col" class="right" title="Average thinking tokens per call">Avg thinking</th>
+                <th scope="col" class="right" title="Thinking as a share of all generated tokens">Thinking share</th>
+                <th scope="col" class="right" title="Median call time">p50</th>
+                <th scope="col" class="right" title="95th percentile call time">p95</th>
+                <th scope="col" class="right">Slowest</th>
+                <th scope="col" class="right" title="Output and thinking tokens per second of wall-clock time">Speed</th>
+                <th scope="col" class="right" title="Prompt characters per input token">Chars/token</th>
+                <th scope="col" class="right">Failure rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of performance(); track p.key) {
+                <tr>
+                  <td class="nowrap">{{ p.label }} <small class="muted">· {{ p.totals.calls }}</small></td>
+                  <td class="right num">{{ formatTokens(p.avgInput) }}</td>
+                  <td class="right num">{{ formatTokens(p.avgOutput) }}</td>
+                  <td class="right num">{{ p.avgThinking ? formatTokens(p.avgThinking) : '—' }}</td>
+                  <td class="right num">{{ percent(p.thinkingShare) }}</td>
+                  @if (p.stats; as s) {
+                    <td class="right num">{{ s.p50Ms ? formatDuration(s.p50Ms) : '—' }}</td>
+                    <td class="right num">{{ s.p95Ms ? formatDuration(s.p95Ms) : '—' }}</td>
+                    <td class="right num">{{ s.maxMs ? formatDuration(s.maxMs) : '—' }}</td>
+                    <td class="right num">{{ s.outputTokensPerSecond ? (s.outputTokensPerSecond | number: '1.0-0') + '/s' : '—' }}</td>
+                    <td class="right num">{{ s.promptCharsPerToken ? (s.promptCharsPerToken | number: '1.1-1') : '—' }}</td>
+                  } @else {
+                    <td class="right muted" colspan="5">Restart the server for timing stats</td>
+                  }
+                  <td class="right num" [class.failed]="p.failureRate">{{ percent(p.failureRate) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="card table-card">
+          <div class="section-head section-head--pad">
+            <h2>Tailoring by job</h2>
+            <span class="hint">{{ jobSpend().length }} job{{ jobSpend().length === 1 ? '' : 's' }}</span>
+          </div>
+          @if (jobSpend().length) {
+            <div class="table-scroll table-scroll--short">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Job</th>
+                    <th scope="col" class="right" title="More than one means the resume was re-tailored">Runs</th>
+                    <th scope="col" class="right">Tokens</th>
+                    <th scope="col" class="right">Avg time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (j of jobSpend(); track j.jobId) {
+                    <tr>
+                      <td>
+                        @if (j.job; as job) {
+                          <div class="activity">
+                            <span>{{ job.title }}</span>
+                            <small>{{ job.company }}</small>
+                          </div>
+                        } @else {
+                          <span class="mono muted" title="This job is no longer in your applications">{{ j.jobId }}</span>
+                        }
+                      </td>
+                      <td class="right muted">{{ j.totals.calls }}@if (j.totals.failedCalls) {<span class="failed"> · {{ j.totals.failedCalls }} failed</span>}</td>
+                      <td class="right" [title]="tokenTitle(j.totals)">{{ formatTokens(j.totals.totalTokens) }}</td>
+                      <td class="right muted num">{{ formatDuration(j.avgMs) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="no-rows">No tailoring calls linked to a saved job yet.</p>
+          }
+        </section>
+
+        <section class="card table-card">
+          <div class="section-head section-head--pad">
+            <h2>Errors</h2>
+            <span class="hint">{{ u.totals.failedCalls }} failed call{{ u.totals.failedCalls === 1 ? '' : 's' }}</span>
+          </div>
+          @if (errors().length) {
+            <ul class="errors">
+              @for (e of errors(); track e.message) {
+                <li class="error">
+                  <div class="error__head">
+                    <span class="badge badge--red">{{ e.count }}&times;</span>
+                    <span class="hint">{{ activityList(e.activities) }} &middot; last {{ e.lastAt | date: 'MMM d, h:mm a' }}</span>
+                  </div>
+                  <p class="error__message mono">{{ e.message }}</p>
+                </li>
+              }
+            </ul>
+          } @else if (u.totals.failedCalls) {
+            <p class="no-rows">Restart the server to see failures grouped by error.</p>
+          } @else {
+            <p class="no-rows">No failed calls.</p>
+          }
+        </section>
+      </div>
+
+      <section class="card table-card">
         <div class="table-toolbar">
           <h2>Recent calls <span class="hint">(last {{ recentLimit }})</span></h2>
           <div class="segmented" role="group" aria-label="Filter calls">

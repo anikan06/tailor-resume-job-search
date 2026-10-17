@@ -246,6 +246,24 @@ export interface LlmUsageRecord {
   responseChars?: number;
 }
 
+/** Mirrors ActivityStats in server/src/telemetry.ts. */
+export interface ActivityStats {
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+  outputTokensPerSecond?: number;
+  promptCharsPerToken?: number;
+}
+
+/** Mirrors ErrorGroup in server/src/telemetry.ts. */
+export interface ErrorGroup {
+  message: string;
+  count: number;
+  lastAt: string;
+  activities: LlmActivity[];
+  providers: AiProvider[];
+}
+
 /** Mirrors UsageSummary in server/src/telemetry.ts. */
 export interface UsageSummary {
   totals: UsageTotals;
@@ -255,6 +273,9 @@ export interface UsageSummary {
   stopReasons?: Record<string, number>;
   rateLimits?: Partial<Record<AiProvider, RateLimitStatus>>;
   byJob: Record<string, UsageTotals>;
+  /** Absent in summaries from servers older than these fields. */
+  activityStats?: Partial<Record<LlmActivity, ActivityStats>>;
+  errors?: ErrorGroup[];
   /** Keyed by local calendar day (YYYY-MM-DD), oldest first. */
   byDay: Record<string, UsageTotals>;
   recent: LlmUsageRecord[];
