@@ -56,6 +56,67 @@ export interface Profile {
     /** Only tailor and hand back the PDF - never open a browser or fill/submit a form. */
     tailor_only?: boolean;
   };
+  /** The candidate's background, read from the resume and editable on the Profile page. */
+  career?: CareerProfile;
+}
+
+/** Dates are kept as the resume wrote them ("Jan 2020", "2020-01", "2020"). */
+export interface WorkExperience {
+  title?: string;
+  company?: string;
+  location?: string;
+  start_date?: string;
+  end_date?: string;
+  current?: boolean;
+  highlights?: string[];
+}
+
+export interface Education {
+  institution?: string;
+  degree?: string;
+  field?: string;
+  start_date?: string;
+  end_date?: string;
+  grade?: string;
+  details?: string[];
+}
+
+export interface Project {
+  name?: string;
+  url?: string;
+  technologies?: string[];
+  highlights?: string[];
+}
+
+export interface Certification {
+  name?: string;
+  issuer?: string;
+  date?: string;
+  url?: string;
+}
+
+export interface Language {
+  name?: string;
+  /** e.g. "Native", "Fluent", "Professional", "Basic". */
+  proficiency?: string;
+}
+
+/** A section the resume has beyond the standard ones, e.g. "Achievements" or "Volunteering". */
+export interface AdditionalSection {
+  heading?: string;
+  items?: string[];
+}
+
+export interface CareerProfile {
+  headline?: string;
+  summary?: string;
+  skills?: string[];
+  experience?: WorkExperience[];
+  education?: Education[];
+  projects?: Project[];
+  certifications?: Certification[];
+  languages?: Language[];
+  additional_sections?: AdditionalSection[];
 }
 
 export type AiProvider = "anthropic" | "openai" | "gemini" | "ollama";

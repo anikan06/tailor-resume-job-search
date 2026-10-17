@@ -47,6 +47,67 @@ export interface Profile {
   schedule?: { enabled?: boolean; cron?: string };
   /** tailor_only: "Apply" just tailors and downloads the resume, for applying manually anywhere. */
   apply?: { tailor_only?: boolean };
+  /** Background read from the resume; edited on the Profile page. */
+  career?: CareerProfile;
+}
+
+/** Mirrors the career types in server/src/types.ts. Dates are free text, as written in the resume. */
+export interface WorkExperience {
+  title?: string;
+  company?: string;
+  location?: string;
+  start_date?: string;
+  end_date?: string;
+  current?: boolean;
+  highlights?: string[];
+}
+
+export interface Education {
+  institution?: string;
+  degree?: string;
+  field?: string;
+  start_date?: string;
+  end_date?: string;
+  grade?: string;
+  details?: string[];
+}
+
+export interface Project {
+  name?: string;
+  url?: string;
+  technologies?: string[];
+  highlights?: string[];
+}
+
+export interface Certification {
+  name?: string;
+  issuer?: string;
+  date?: string;
+  url?: string;
+}
+
+export interface Language {
+  name?: string;
+  /** e.g. "Native", "Fluent", "Professional", "Basic". */
+  proficiency?: string;
+}
+
+/** A section the resume has beyond the standard ones, e.g. "Achievements" or "Volunteering". */
+export interface AdditionalSection {
+  heading?: string;
+  items?: string[];
+}
+
+export interface CareerProfile {
+  headline?: string;
+  summary?: string;
+  skills?: string[];
+  experience?: WorkExperience[];
+  education?: Education[];
+  projects?: Project[];
+  certifications?: Certification[];
+  languages?: Language[];
+  additional_sections?: AdditionalSection[];
 }
 
 export interface JobListing {
@@ -100,6 +161,7 @@ export interface ResumeExtraction {
   >;
   suggestedRoles: string[];
   skills: string[];
+  career?: CareerProfile;
   source: 'ai' | 'heuristic';
 }
 
@@ -127,22 +189,60 @@ export interface UsageTotals {
   failedCalls: number;
   inputTokens: number;
   outputTokens: number;
+  /** Absent in summaries from servers older than this field. */
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
   totalTokens: number;
+  durationMs?: number;
 }
 
+/** Mirrors RateLimitSnapshot in server/src/telemetry.ts. */
+export interface RateLimitSnapshot {
+  requestsLimit?: number;
+  requestsRemaining?: number;
+  requestsReset?: string;
+  tokensLimit?: number;
+  tokensRemaining?: number;
+  tokensReset?: string;
+  inputTokensRemaining?: number;
+  outputTokensRemaining?: number;
+}
+
+export interface RateLimitStatus extends RateLimitSnapshot {
+  at: string;
+  model: string;
+}
+
+/**
+ * Mirrors LlmUsageRecord in server/src/telemetry.ts. Everything after `ok` was
+ * added later, so calls logged before then don't have it.
+ */
 export interface LlmUsageRecord {
   at: string;
   activity: LlmActivity;
   jobId?: string;
   provider: AiProvider;
   model: string;
+  /** Includes any cached part. */
   inputTokens: number;
+  /** Visible reply only. */
   outputTokens: number;
   reasoningTokens?: number;
   totalTokens: number;
   durationMs: number;
   ok: boolean;
   error?: string;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
+  requestId?: string;
+  responseModel?: string;
+  stopReason?: string;
+  serviceTier?: string;
+  httpStatus?: number;
+  rateLimit?: RateLimitSnapshot;
+  maxTokens?: number;
+  promptChars?: number;
+  responseChars?: number;
 }
 
 /** Mirrors UsageSummary in server/src/telemetry.ts. */
@@ -150,6 +250,11 @@ export interface UsageSummary {
   totals: UsageTotals;
   byActivity: Partial<Record<LlmActivity, UsageTotals>>;
   byModel: Record<string, UsageTotals>;
+  byProvider?: Partial<Record<AiProvider, UsageTotals>>;
+  stopReasons?: Record<string, number>;
+  rateLimits?: Partial<Record<AiProvider, RateLimitStatus>>;
   byJob: Record<string, UsageTotals>;
+  /** Keyed by local calendar day (YYYY-MM-DD), oldest first. */
+  byDay: Record<string, UsageTotals>;
   recent: LlmUsageRecord[];
 }

@@ -1,6 +1,7 @@
 import { newPage } from "../browser.js";
 import type { JobListing, Profile, FieldAnswer } from "../types.js";
 import { fillApplicationForm } from "../formFiller.js";
+import { resolveResume, type ResumeSource } from "../jobDescription.js";
 
 /**
  * LinkedIn search + apply. Uses YOUR already-logged-in Chrome (see
@@ -59,11 +60,20 @@ export interface LinkedInApplyResult {
 export async function prefillLinkedInApplication(
   jobUrl: string,
   profile: Profile,
-  resumeFilePath?: string,
+  resume?: ResumeSource,
   extraAnswers: Record<string, string> = {}
 ): Promise<LinkedInApplyResult> {
   const page = await newPage();
   await page.goto(jobUrl, { waitUntil: "domcontentloaded" });
+
+  // Tailoring (when the resume is a callback) reads the description from this same page.
+  let resumeFilePath: string | undefined;
+  try {
+    resumeFilePath = await resolveResume(resume, page);
+  } catch (err) {
+    await page.close().catch(() => {});
+    throw err;
+  }
 
   const easyApplyButton = page.getByRole("button", { name: /easy apply/i }).first();
   if (await easyApplyButton.count().catch(() => 0)) {

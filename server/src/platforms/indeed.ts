@@ -1,6 +1,7 @@
 import { newPage } from "../browser.js";
 import type { JobListing, Profile, FieldAnswer } from "../types.js";
 import { fillApplicationForm } from "../formFiller.js";
+import { resolveResume, type ResumeSource } from "../jobDescription.js";
 
 /**
  * Indeed search + apply, using your already-logged-in Chrome session.
@@ -53,11 +54,20 @@ export interface IndeedApplyResult {
 export async function prefillIndeedApplication(
   jobUrl: string,
   profile: Profile,
-  resumeFilePath?: string,
+  resume?: ResumeSource,
   extraAnswers: Record<string, string> = {}
 ): Promise<IndeedApplyResult> {
   const page = await newPage();
   await page.goto(jobUrl, { waitUntil: "domcontentloaded" });
+
+  // Tailoring (when the resume is a callback) reads the description from this same page.
+  let resumeFilePath: string | undefined;
+  try {
+    resumeFilePath = await resolveResume(resume, page);
+  } catch (err) {
+    await page.close().catch(() => {});
+    throw err;
+  }
 
   const applyButton = page.getByRole("button", { name: /apply now|apply/i }).first();
   if (await applyButton.count().catch(() => 0)) {

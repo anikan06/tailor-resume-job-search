@@ -17,7 +17,9 @@ export class AppComponent {
 
   nav: { path: string; label: string; icon: IconName }[] = [
     { path: '/dashboard', label: 'Dashboard', icon: 'grid' },
+    { path: '/profile', label: 'Profile', icon: 'user' },
     { path: '/history', label: 'History', icon: 'clock' },
+    { path: '/usage', label: 'AI Usage', icon: 'activity' },
     { path: '/settings', label: 'Settings', icon: 'settings' }
   ];
 

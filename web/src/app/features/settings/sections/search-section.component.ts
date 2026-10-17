@@ -16,7 +16,7 @@ import { ChipInputComponent } from '../../../shared/chip-input.component';
         [values]="profile().search.target_roles ?? []"
         (valuesChange)="profile().search.target_roles = $event"
         [suggestions]="extracted()?.suggestedRoles ?? []"
-        suggestionsLabel="Suggested from your resume:"
+        suggestionsLabel="Suggested from your resume and profile:"
       />
       @if (!extracted()) {
         <p class="field__help">Upload your resume above to get role suggestions.</p>
@@ -30,7 +30,7 @@ import { ChipInputComponent } from '../../../shared/chip-input.component';
         [values]="profile().search.keywords ?? []"
         (valuesChange)="profile().search.keywords = $event"
         [suggestions]="extracted()?.skills ?? []"
-        suggestionsLabel="Skills in your resume:"
+        suggestionsLabel="Skills from your resume and profile:"
       />
       <p class="field__help">Used for Greenhouse/Lever filtering and LinkedIn/Naukri/Indeed/Google Jobs search.</p>
     </div>

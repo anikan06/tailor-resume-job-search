@@ -1,0 +1,678 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Your background</p>
+      <h1>Profile</h1>
+      <p class="subtitle">Your experience, education, skills and languages, read from your resume. Anything you add or correct here goes into your tailored resumes and role suggestions.</p>
+    </div>
+    @if (!loading() && !loadError()) {
+      <div class="header-actions">
+        @if (confirmingReplace()) {
+          <span class="confirm-text">Replace everything below with your resume's contents?</span>
+          <button class="btn btn--ghost" (click)="confirmingReplace.set(false)">Cancel</button>
+          <button class="btn btn--primary" (click)="fillFromResume(true)">Replace</button>
+        } @else {
+          <button
+            class="btn"
+            (click)="fillFromResume()"
+            [disabled]="!resume().uploaded || fetching() || saving()"
+            [title]="resume().uploaded ? 'Read experience, education and skills from ' + resume().fileName : 'Upload a resume in Settings first'"
+          >
+            @if (fetching()) {
+              <span class="spinner"></span> Reading resume&hellip;
+            } @else {
+              <app-icon name="file" [size]="15" /> Fill from resume
+            }
+          </button>
+          @for (src of importSources; track src.id) {
+            <button
+              class="btn"
+              (click)="startImport(src.id)"
+              [disabled]="!!importing() || fetching() || saving()"
+              [title]="src.title"
+            >
+              @if (importing() === src.id) {
+                <span class="spinner"></span> Reading {{ src.label }}&hellip;
+              } @else {
+                <app-icon [name]="src.icon" [size]="15" /> Import from {{ src.label }}
+              }
+            </button>
+          }
+        }
+      </div>
+    }
+  </header>
+
+  @if (askingLinkFor(); as src) {
+    <form class="card import-link" (ngSubmit)="runImport(src, importLink)">
+      <label for="import-link">Your {{ src === 'github' ? 'GitHub username or profile URL' : 'LinkedIn profile URL' }}</label>
+      <div class="import-link__row">
+        <input
+          id="import-link"
+          name="importLink"
+          [(ngModel)]="importLink"
+          [placeholder]="src === 'github' ? 'https://github.com/username' : 'https://www.linkedin.com/in/handle'"
+        />
+        <button type="button" class="btn btn--ghost" (click)="askingLinkFor.set(null)">Cancel</button>
+        <button type="submit" class="btn btn--primary" [disabled]="!importLink.trim()">Import</button>
+      </div>
+    </form>
+  }
+
+  @if (toast(); as t) {
+    <div class="toast" role="status" [attr.data-tone]="t.tone">
+      <app-icon [name]="t.tone === 'success' ? 'check' : 'alert'" [size]="16" />
+      <span class="toast__text">{{ t.text }}</span>
+      @if (t.undoable) {
+        <button class="btn btn--sm btn--ghost" (click)="undo()" [disabled]="saving()">Undo</button>
+      }
+      <button class="btn btn--sm btn--ghost btn--icon" (click)="toast.set(null)" aria-label="Dismiss">
+        <app-icon name="x" [size]="14" />
+      </button>
+    </div>
+  }
+
+  @if (loading()) {
+    @for (n of [1, 2, 3]; track n) {
+      <div class="card skeleton-card" aria-hidden="true">
+        <div class="skeleton skeleton-card__title"></div>
+        <div class="skeleton skeleton-card__line"></div>
+        <div class="skeleton skeleton-card__line skeleton-card__line--short"></div>
+      </div>
+    }
+  } @else if (loadError()) {
+    <div class="card empty">
+      <div class="empty__icon"><app-icon name="alert" [size]="24" /></div>
+      <h3>Profile unavailable</h3>
+      <p>{{ loadError() }}</p>
+    </div>
+  } @else {
+    <!-- Overview -->
+    <section class="card overview">
+      <div class="overview__avatar" aria-hidden="true">{{ initials() }}</div>
+      <div class="overview__body">
+        <h2 class="overview__name">{{ personal().full_name || 'Your name' }}</h2>
+        @if (career().headline) {
+          <p class="overview__headline">{{ career().headline }}</p>
+        }
+        <ul class="meta">
+          @if (personal().location) {
+            <li><app-icon name="map-pin" [size]="14" /> {{ personal().location }}</li>
+          }
+          @if (personal().email) {
+            <li><app-icon name="mail" [size]="14" /> {{ personal().email }}</li>
+          }
+          @if (personal().phone) {
+            <li><app-icon name="phone" [size]="14" /> {{ personal().phone }}</li>
+          }
+          @if (personal().linkedin_url) {
+            <li><app-icon name="link" [size]="14" /> <a [href]="personal().linkedin_url" target="_blank" rel="noopener">LinkedIn</a></li>
+          }
+          @if (personal().github_url) {
+            <li><app-icon name="code" [size]="14" /> <a [href]="personal().github_url" target="_blank" rel="noopener">GitHub</a></li>
+          }
+          @if (personal().portfolio_url) {
+            <li><app-icon name="external" [size]="14" /> <a [href]="personal().portfolio_url" target="_blank" rel="noopener">Website</a></li>
+          }
+        </ul>
+        <div class="overview__stats">
+          @if (totalExperience(); as total) {
+            <span class="badge badge--plain">{{ total }} experience</span>
+          }
+          <span class="badge badge--plain">{{ career().experience?.length ?? 0 }} roles</span>
+          <span class="badge badge--plain">{{ career().skills?.length ?? 0 }} skills</span>
+        </div>
+      </div>
+      <a class="btn btn--sm btn--ghost overview__edit" routerLink="/settings" title="Contact details are edited in Settings">
+        <app-icon name="edit" [size]="14" /> Contact details
+      </a>
+    </section>
+
+    @if (isEmpty()) {
+      <div class="card empty empty--compact">
+        <div class="empty__icon"><app-icon name="user" [size]="24" /></div>
+        <h3>Your profile is empty</h3>
+        @if (resume().uploaded) {
+          <p>Pull your experience, education and skills from <strong>{{ resume().fileName }}</strong>, or add them yourself below.</p>
+          <button class="btn btn--primary" (click)="fillFromResume()" [disabled]="fetching()">
+            @if (fetching()) {
+              <span class="spinner"></span> Reading resume&hellip;
+            } @else {
+              <app-icon name="file" [size]="15" /> Fill from resume
+            }
+          </button>
+        } @else {
+          <p>Upload your resume and we'll fill this in for you, or add details yourself below.</p>
+          <a class="btn btn--primary" routerLink="/settings"><app-icon name="upload" [size]="15" /> Upload resume</a>
+        }
+      </div>
+    }
+
+    <!-- About -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="user" /></span>
+        <h2>About</h2>
+        @if (!isEditing('about', null)) {
+          <button class="btn btn--sm btn--ghost" (click)="startEdit('about')" [disabled]="saving()">
+            <app-icon name="edit" [size]="14" /> Edit
+          </button>
+        }
+      </div>
+      @if (isEditing('about', null)) {
+        <form class="entry-form" (ngSubmit)="saveEdit()">
+          <div class="field">
+            <label for="headline">Headline</label>
+            <input id="headline" name="headline" [(ngModel)]="draft['headline']" placeholder="Senior Frontend Engineer" />
+          </div>
+          <div class="field">
+            <label for="summary">Summary</label>
+            <textarea id="summary" name="summary" rows="5" [(ngModel)]="draft['summary']" placeholder="A few sentences about what you do and what you're looking for"></textarea>
+          </div>
+          <ng-container *ngTemplateOutlet="formActions" />
+        </form>
+      } @else if (career().summary || career().headline) {
+        @if (career().summary) {
+          <p class="prose">{{ career().summary }}</p>
+        } @else {
+          <p class="hint">No summary yet.</p>
+        }
+      } @else {
+        <p class="hint">Add a headline and a short summary about yourself.</p>
+      }
+    </section>
+
+    <!-- Experience -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="briefcase" /></span>
+        <h2>Experience</h2>
+        <button class="btn btn--sm" (click)="startAdd('experience')" [disabled]="saving() || isEditing('experience', null)">
+          <app-icon name="plus" [size]="14" /> Add
+        </button>
+      </div>
+
+      @if (isEditing('experience', null)) {
+        <ng-container *ngTemplateOutlet="experienceForm" />
+      }
+      @for (e of career().experience ?? []; track $index; let i = $index, first = $first, last = $last) {
+        @if (isEditing('experience', i)) {
+          <ng-container *ngTemplateOutlet="experienceForm" />
+        } @else {
+          <article class="entry">
+            <span class="entry__dot" aria-hidden="true"></span>
+            <div class="entry__body">
+              <h3>{{ e.title || e.company }}</h3>
+              <p class="entry__sub">
+                @if (e.title && e.company) {
+                  {{ e.company }}
+                }
+                @if (e.location) {
+                  <span class="sep">{{ e.location }}</span>
+                }
+              </p>
+              @if (e.start_date || e.end_date || e.current) {
+                <p class="entry__dates">
+                  {{ dateRange(e.start_date, e.end_date, e.current) }}
+                  @if (duration(e.start_date, e.end_date, e.current); as d) {
+                    <span class="sep">{{ d }}</span>
+                  }
+                </p>
+              }
+              @if (e.highlights?.length) {
+                <ul class="entry__list">
+                  @for (h of e.highlights; track $index) {
+                    <li>{{ h }}</li>
+                  }
+                </ul>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'experience', i: i, first: first, last: last }" />
+          </article>
+        }
+      } @empty {
+        @if (!isEditing('experience', null)) {
+          <p class="hint">No experience added yet.</p>
+        }
+      }
+    </section>
+
+    <!-- Education -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="graduation" /></span>
+        <h2>Education</h2>
+        <button class="btn btn--sm" (click)="startAdd('education')" [disabled]="saving() || isEditing('education', null)">
+          <app-icon name="plus" [size]="14" /> Add
+        </button>
+      </div>
+
+      @if (isEditing('education', null)) {
+        <ng-container *ngTemplateOutlet="educationForm" />
+      }
+      @for (e of career().education ?? []; track $index; let i = $index, first = $first, last = $last) {
+        @if (isEditing('education', i)) {
+          <ng-container *ngTemplateOutlet="educationForm" />
+        } @else {
+          <article class="entry">
+            <span class="entry__dot" aria-hidden="true"></span>
+            <div class="entry__body">
+              <h3>{{ e.institution || e.degree }}</h3>
+              @if (e.institution && (e.degree || e.field)) {
+                <p class="entry__sub">{{ e.degree }}{{ e.degree && e.field ? ', ' : '' }}{{ e.field }}</p>
+              } @else if (e.field) {
+                <p class="entry__sub">{{ e.field }}</p>
+              }
+              @if (e.start_date || e.end_date || e.grade) {
+                <p class="entry__dates">
+                  {{ dateRange(e.start_date, e.end_date) }}
+                  @if (e.grade) {
+                    <span [class.sep]="e.start_date || e.end_date">{{ e.grade }}</span>
+                  }
+                </p>
+              }
+              @if (e.details?.length) {
+                <ul class="entry__list">
+                  @for (d of e.details; track $index) {
+                    <li>{{ d }}</li>
+                  }
+                </ul>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'education', i: i, first: first, last: last }" />
+          </article>
+        }
+      } @empty {
+        @if (!isEditing('education', null)) {
+          <p class="hint">No education added yet.</p>
+        }
+      }
+    </section>
+
+    <!-- Skills -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="sparkles" /></span>
+        <h2>Skills</h2>
+      </div>
+      <app-chip-input
+        inputId="skills"
+        [values]="career().skills ?? []"
+        (valuesChange)="saveSkills($event)"
+        placeholder="Type a skill and press Enter"
+      />
+      <p class="field__help">Saved as you add or remove them.</p>
+    </section>
+
+    <!-- Languages -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="globe" /></span>
+        <h2>Languages</h2>
+        <button class="btn btn--sm" (click)="startAdd('languages')" [disabled]="saving() || isEditing('languages', null)">
+          <app-icon name="plus" [size]="14" /> Add
+        </button>
+      </div>
+
+      @if (isEditing('languages', null)) {
+        <ng-container *ngTemplateOutlet="languageForm" />
+      }
+      @for (l of career().languages ?? []; track $index; let i = $index, first = $first, last = $last) {
+        @if (isEditing('languages', i)) {
+          <ng-container *ngTemplateOutlet="languageForm" />
+        } @else {
+          <article class="entry">
+            <span class="entry__dot" aria-hidden="true"></span>
+            <div class="entry__body">
+              <h3>{{ l.name }}</h3>
+              @if (l.proficiency) {
+                <p class="entry__sub">{{ l.proficiency }}</p>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'languages', i: i, first: first, last: last }" />
+          </article>
+        }
+      } @empty {
+        @if (!isEditing('languages', null)) {
+          <p class="hint">No languages added yet.</p>
+        }
+      }
+    </section>
+
+    <!-- Projects -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="code" /></span>
+        <h2>Projects</h2>
+        <button class="btn btn--sm" (click)="startAdd('projects')" [disabled]="saving() || isEditing('projects', null)">
+          <app-icon name="plus" [size]="14" /> Add
+        </button>
+      </div>
+
+      @if (isEditing('projects', null)) {
+        <ng-container *ngTemplateOutlet="projectForm" />
+      }
+      @for (p of career().projects ?? []; track $index; let i = $index, first = $first, last = $last) {
+        @if (isEditing('projects', i)) {
+          <ng-container *ngTemplateOutlet="projectForm" />
+        } @else {
+          <article class="entry">
+            <span class="entry__dot" aria-hidden="true"></span>
+            <div class="entry__body">
+              <h3>
+                {{ p.name }}
+                @if (p.url) {
+                  <a class="entry__link" [href]="p.url" target="_blank" rel="noopener" [attr.aria-label]="'Open ' + p.name">
+                    <app-icon name="external" [size]="13" />
+                  </a>
+                }
+              </h3>
+              @if (p.technologies?.length) {
+                <div class="chips">
+                  @for (t of p.technologies; track t) {
+                    <span class="chip chip--muted">{{ t }}</span>
+                  }
+                </div>
+              }
+              @if (p.highlights?.length) {
+                <ul class="entry__list">
+                  @for (h of p.highlights; track $index) {
+                    <li>{{ h }}</li>
+                  }
+                </ul>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'projects', i: i, first: first, last: last }" />
+          </article>
+        }
+      } @empty {
+        @if (!isEditing('projects', null)) {
+          <p class="hint">No projects added yet.</p>
+        }
+      }
+    </section>
+
+    <!-- Certifications -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="award" /></span>
+        <h2>Certifications</h2>
+        <button class="btn btn--sm" (click)="startAdd('certifications')" [disabled]="saving() || isEditing('certifications', null)">
+          <app-icon name="plus" [size]="14" /> Add
+        </button>
+      </div>
+
+      @if (isEditing('certifications', null)) {
+        <ng-container *ngTemplateOutlet="certificationForm" />
+      }
+      @for (c of career().certifications ?? []; track $index; let i = $index, first = $first, last = $last) {
+        @if (isEditing('certifications', i)) {
+          <ng-container *ngTemplateOutlet="certificationForm" />
+        } @else {
+          <article class="entry">
+            <span class="entry__dot" aria-hidden="true"></span>
+            <div class="entry__body">
+              <h3>
+                {{ c.name }}
+                @if (c.url) {
+                  <a class="entry__link" [href]="c.url" target="_blank" rel="noopener" [attr.aria-label]="'Open ' + c.name">
+                    <app-icon name="external" [size]="13" />
+                  </a>
+                }
+              </h3>
+              @if (c.issuer || c.date) {
+                <p class="entry__sub">
+                  {{ c.issuer }}
+                  @if (c.date) {
+                    <span [class.sep]="c.issuer">{{ c.date }}</span>
+                  }
+                </p>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'certifications', i: i, first: first, last: last }" />
+          </article>
+        }
+      } @empty {
+        @if (!isEditing('certifications', null)) {
+          <p class="hint">No certifications added yet.</p>
+        }
+      }
+    </section>
+
+    <!-- Additional sections -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-head__icon"><app-icon name="list" /></span>
+        <h2>More sections</h2>
+        <button class="btn btn--sm" (click)="startAdd('additional_sections')" [disabled]="saving() || isEditing('additional_sections', null)">
+          <app-icon name="plus" [size]="14" /> Add section
+        </button>
+      </div>
+
+      @if (isEditing('additional_sections', null)) {
+        <ng-container *ngTemplateOutlet="additionalSectionForm" />
+      }
+      @for (a of career().additional_sections ?? []; track $index; let i = $index, first = $first, last = $last) {
+        @if (isEditing('additional_sections', i)) {
+          <ng-container *ngTemplateOutlet="additionalSectionForm" />
+        } @else {
+          <article class="entry">
+            <span class="entry__dot" aria-hidden="true"></span>
+            <div class="entry__body">
+              <h3>{{ a.heading }}</h3>
+              @if (a.items?.length) {
+                <ul class="entry__list">
+                  @for (item of a.items; track $index) {
+                    <li>{{ item }}</li>
+                  }
+                </ul>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="entryActions; context: { key: 'additional_sections', i: i, first: first, last: last }" />
+          </article>
+        }
+      } @empty {
+        @if (!isEditing('additional_sections', null)) {
+          <p class="hint">Add achievements, awards, publications, volunteering or anything else your resume should show.</p>
+        }
+      }
+    </section>
+  }
+</div>
+
+<!-- ---- shared templates ---- -->
+
+<ng-template #entryActions let-key="key" let-i="i" let-first="first" let-last="last">
+  <div class="entry__actions">
+    <button class="btn btn--ghost btn--icon" (click)="move(key, i, -1)" [disabled]="first || saving()" title="Move up" aria-label="Move up">
+      <app-icon name="chevron" [size]="15" class="flip" />
+    </button>
+    <button class="btn btn--ghost btn--icon" (click)="move(key, i, 1)" [disabled]="last || saving()" title="Move down" aria-label="Move down">
+      <app-icon name="chevron" [size]="15" />
+    </button>
+    <button class="btn btn--ghost btn--icon" (click)="startEdit(key, i)" [disabled]="saving()" title="Edit" aria-label="Edit">
+      <app-icon name="edit" [size]="15" />
+    </button>
+    <button class="btn btn--ghost btn--icon btn--danger" (click)="remove(key, i)" [disabled]="saving()" title="Delete" aria-label="Delete">
+      <app-icon name="trash" [size]="15" />
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #formActions>
+  <div class="entry-form__actions">
+    <button type="button" class="btn btn--ghost" (click)="cancelEdit()" [disabled]="saving()">Cancel</button>
+    <button type="submit" class="btn btn--primary" [disabled]="saving() || !canSaveDraft()">
+      @if (saving()) {
+        <span class="spinner"></span> Saving&hellip;
+      } @else {
+        <app-icon name="check" [size]="15" /> Save
+      }
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #experienceForm>
+  <form class="entry-form" (ngSubmit)="saveEdit()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="exp-title">Job title</label>
+        <input id="exp-title" name="title" [(ngModel)]="draft['title']" placeholder="Senior Frontend Engineer" />
+      </div>
+      <div class="field">
+        <label for="exp-company">Company</label>
+        <input id="exp-company" name="company" [(ngModel)]="draft['company']" placeholder="Acme Corp" />
+      </div>
+      <div class="field">
+        <label for="exp-location">Location</label>
+        <input id="exp-location" name="location" [(ngModel)]="draft['location']" placeholder="Bangalore, India / Remote" />
+      </div>
+      <div class="field field--dates">
+        <div>
+          <label for="exp-start">Start</label>
+          <input id="exp-start" name="start_date" [(ngModel)]="draft['start_date']" placeholder="Jan 2021" />
+        </div>
+        <div>
+          <label for="exp-end">End</label>
+          <input id="exp-end" name="end_date" [(ngModel)]="draft['end_date']" [disabled]="!!draft['current']" [placeholder]="draft['current'] ? 'Present' : 'Mar 2023'" />
+        </div>
+      </div>
+    </div>
+    <label class="checkbox">
+      <input type="checkbox" name="current" [(ngModel)]="draft['current']" /> I currently work here
+    </label>
+    <div class="field">
+      <label for="exp-highlights">Highlights</label>
+      <textarea id="exp-highlights" name="highlights" rows="5" [(ngModel)]="draft['highlights']" placeholder="One achievement per line"></textarea>
+      <p class="field__help">One bullet per line.</p>
+    </div>
+    <ng-container *ngTemplateOutlet="formActions" />
+  </form>
+</ng-template>
+
+<ng-template #educationForm>
+  <form class="entry-form" (ngSubmit)="saveEdit()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="edu-institution">School / university</label>
+        <input id="edu-institution" name="institution" [(ngModel)]="draft['institution']" placeholder="IIT Delhi" />
+      </div>
+      <div class="field">
+        <label for="edu-degree">Degree</label>
+        <input id="edu-degree" name="degree" [(ngModel)]="draft['degree']" placeholder="B.Tech" />
+      </div>
+      <div class="field">
+        <label for="edu-field">Field of study</label>
+        <input id="edu-field" name="field" [(ngModel)]="draft['field']" placeholder="Computer Science" />
+      </div>
+      <div class="field">
+        <label for="edu-grade">Grade</label>
+        <input id="edu-grade" name="grade" [(ngModel)]="draft['grade']" placeholder="CGPA 8.6/10" />
+      </div>
+      <div class="field field--dates">
+        <div>
+          <label for="edu-start">Start</label>
+          <input id="edu-start" name="start_date" [(ngModel)]="draft['start_date']" placeholder="2013" />
+        </div>
+        <div>
+          <label for="edu-end">End</label>
+          <input id="edu-end" name="end_date" [(ngModel)]="draft['end_date']" placeholder="2017" />
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="edu-details">Details</label>
+      <textarea id="edu-details" name="details" rows="3" [(ngModel)]="draft['details']" placeholder="Activities, coursework, honours - one per line"></textarea>
+    </div>
+    <ng-container *ngTemplateOutlet="formActions" />
+  </form>
+</ng-template>
+
+<ng-template #projectForm>
+  <form class="entry-form" (ngSubmit)="saveEdit()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="proj-name">Project name</label>
+        <input id="proj-name" name="name" [(ngModel)]="draft['name']" />
+      </div>
+      <div class="field">
+        <label for="proj-url">Link</label>
+        <input id="proj-url" name="url" type="url" [(ngModel)]="draft['url']" placeholder="https://…" />
+      </div>
+    </div>
+    <div class="field">
+      <label for="proj-tech">Technologies</label>
+      <input id="proj-tech" name="technologies" [(ngModel)]="draft['technologies']" placeholder="Angular, Node.js, PostgreSQL" />
+      <p class="field__help">Separate with commas.</p>
+    </div>
+    <div class="field">
+      <label for="proj-highlights">Description</label>
+      <textarea id="proj-highlights" name="highlights" rows="4" [(ngModel)]="draft['highlights']" placeholder="What it does and your part in it - one point per line"></textarea>
+    </div>
+    <ng-container *ngTemplateOutlet="formActions" />
+  </form>
+</ng-template>
+
+<ng-template #certificationForm>
+  <form class="entry-form" (ngSubmit)="saveEdit()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="cert-name">Name</label>
+        <input id="cert-name" name="name" [(ngModel)]="draft['name']" placeholder="AWS Certified Developer" />
+      </div>
+      <div class="field">
+        <label for="cert-issuer">Issuer</label>
+        <input id="cert-issuer" name="issuer" [(ngModel)]="draft['issuer']" placeholder="Amazon Web Services" />
+      </div>
+      <div class="field">
+        <label for="cert-date">Date</label>
+        <input id="cert-date" name="date" [(ngModel)]="draft['date']" placeholder="Jun 2022" />
+      </div>
+      <div class="field">
+        <label for="cert-url">Credential link</label>
+        <input id="cert-url" name="url" type="url" [(ngModel)]="draft['url']" placeholder="https://…" />
+      </div>
+    </div>
+    <ng-container *ngTemplateOutlet="formActions" />
+  </form>
+</ng-template>
+
+<ng-template #languageForm>
+  <form class="entry-form" (ngSubmit)="saveEdit()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="lang-name">Language</label>
+        <input id="lang-name" name="name" [(ngModel)]="draft['name']" placeholder="English" />
+      </div>
+      <div class="field">
+        <label for="lang-proficiency">Proficiency</label>
+        <input id="lang-proficiency" name="proficiency" list="lang-proficiencies" [(ngModel)]="draft['proficiency']" placeholder="Fluent" />
+        <datalist id="lang-proficiencies">
+          @for (p of proficiencies; track p) {
+            <option [value]="p"></option>
+          }
+        </datalist>
+      </div>
+    </div>
+    <ng-container *ngTemplateOutlet="formActions" />
+  </form>
+</ng-template>
+
+<ng-template #additionalSectionForm>
+  <form class="entry-form" (ngSubmit)="saveEdit()">
+    <div class="field">
+      <label for="section-heading">Heading</label>
+      <input id="section-heading" name="heading" list="section-headings" [(ngModel)]="draft['heading']" placeholder="Achievements" />
+      <datalist id="section-headings">
+        @for (h of sectionHeadings; track h) {
+          <option [value]="h"></option>
+        }
+      </datalist>
+    </div>
+    <div class="field">
+      <label for="section-items">Items</label>
+      <textarea id="section-items" name="items" rows="4" [(ngModel)]="draft['items']" placeholder="One item per line"></textarea>
+    </div>
+    <ng-container *ngTemplateOutlet="formActions" />
+  </form>
+</ng-template>

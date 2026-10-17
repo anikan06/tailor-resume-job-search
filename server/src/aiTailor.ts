@@ -13,7 +13,8 @@ export interface TailorContentResult {
  * anywhere but their local profile.yaml, never sent anywhere except that
  * provider) to rewrite/reorder the candidate's real resume content for one specific job
  * description. It is explicitly told not to invent experience - only to
- * re-emphasize, reorder and trim what's already in the resume text.
+ * re-emphasize, reorder and trim what's already in the resume text or the
+ * candidate's own edits on the Profile page (skills, languages etc. added there).
  */
 export async function tailorResumeWithAI(
   resumeText: string,
@@ -23,12 +24,15 @@ export async function tailorResumeWithAI(
   profile: Profile,
   jobId?: string
 ): Promise<TailorContentResult> {
+  const career = profile.career && Object.keys(profile.career).length ? JSON.stringify(profile.career).slice(0, 12000) : "";
   const prompt = `You are tailoring a real candidate's resume for one specific job application.
 
 RULES:
-- Do NOT invent, exaggerate, or add experience, skills, titles or dates that are not already present in the RESUME TEXT below.
+- Do NOT invent, exaggerate, or add experience, skills, titles or dates that are not present in the RESUME TEXT or the CANDIDATE PROFILE below.
+- The CANDIDATE PROFILE is the candidate's own up-to-date record: where it differs from the resume text it wins, and anything it adds (skills, languages, extra sections) is true and may be used.
+- Include the candidate's skills and spoken languages as sections when they have any, leading with what matches the JOB DESCRIPTION.
 - You MAY reorder bullets, rephrase for clarity/impact, trim irrelevant content, and foreground the parts of the real experience that match the JOB DESCRIPTION.
-- Keep every claim traceable to something actually in the resume text.
+- Keep every claim traceable to something actually in the resume text or the candidate profile.
 - Output ONLY valid JSON, no prose, no markdown fences, matching exactly this shape:
 {
   "headerTitle": "string - candidate name and a title matching the target role",
@@ -44,7 +48,10 @@ JOB DESCRIPTION:
 ${jobDescription.slice(0, 6000)}
 
 RESUME TEXT:
-${resumeText.slice(0, 12000)}`;
+${resumeText.slice(0, 12000)}${career ? `
+
+CANDIDATE PROFILE (JSON, edited by the candidate):
+${career}` : ""}`;
 
   const jsonText = extractJson(await completeText(prompt, 2000, profile, { activity: "tailor_resume", jobId }));
   try {

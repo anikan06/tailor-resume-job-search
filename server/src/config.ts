@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import type { Profile } from "./types.js";
+import type { CareerProfile, Profile } from "./types.js";
 
 const DEFAULT_PROFILE: Profile = {
   personal: {},
@@ -12,6 +12,7 @@ const DEFAULT_PROFILE: Profile = {
   ai: {},
   schedule: { enabled: false, cron: "0 7 * * *" },
   apply: { tailor_only: false },
+  career: {},
 };
 
 function profilePath(): string {
@@ -59,7 +60,14 @@ function mergeWithDefaults(parsed: Partial<Profile>): Profile {
     ai: { ...DEFAULT_PROFILE.ai, ...parsed.ai },
     schedule: { ...DEFAULT_PROFILE.schedule, ...parsed.schedule },
     apply: { ...DEFAULT_PROFILE.apply, ...parsed.apply },
+    career: parsed.career ?? {},
   };
+}
+
+/** True when nothing has been filled into the career profile yet. */
+export function isCareerEmpty(career: CareerProfile | undefined): boolean {
+  if (!career) return true;
+  return Object.values(career).every((v) => (Array.isArray(v) ? v.length === 0 : !v));
 }
 
 /** Best-effort match of a form question's label text to a configured answer. */

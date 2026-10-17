@@ -8,6 +8,7 @@ import { searchLinkedInJobs } from "./platforms/linkedin.js";
 import { searchNaukriJobs } from "./platforms/naukri.js";
 import { searchIndeedJobs } from "./platforms/indeed.js";
 import { searchGoogleJobs } from "./platforms/google.js";
+import { careerToText } from "./resume/careerSections.js";
 
 const CACHE_PATH = process.env.JOB_AGENT_CACHE ?? new URL("../data/jobs-cache.json", import.meta.url).pathname;
 
@@ -41,6 +42,8 @@ export function scoreRelevance(job: JobListing, resumeText: string, keywords: st
 export async function aggregateJobs(profile: Profile, resumeText: string): Promise<AggregationResult> {
   const errors: AggregationSourceError[] = [];
   const keywords = profile.search?.keywords ?? [];
+  // Skills etc. added on the Profile page count as much as the resume's own text.
+  const matchText = `${resumeText}\n${careerToText(profile.career)}`;
   const locations = profile.search?.locations ?? [""];
   const location = locations[0] ?? "";
 
@@ -94,7 +97,7 @@ export async function aggregateJobs(profile: Profile, resumeText: string): Promi
     enriched.push({
       ...job,
       id: jobIdFor(job.url),
-      relevanceScore: scoreRelevance(job, resumeText, keywords),
+      relevanceScore: scoreRelevance(job, matchText, keywords),
       alreadyApplied: Boolean(existing),
       autoSubmitEligible: canAutoSubmit(job.platform),
     });

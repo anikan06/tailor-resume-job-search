@@ -26,7 +26,17 @@ export type IconName =
   | 'calendar'
   | 'inbox'
   | 'x'
-  | 'download';
+  | 'download'
+  | 'activity'
+  | 'chevron'
+  | 'graduation'
+  | 'award'
+  | 'code'
+  | 'link'
+  | 'globe'
+  | 'list'
+  | 'mail'
+  | 'phone';
 
 /** Small inline-SVG icon set (Lucide-style strokes) so the app needs no icon dependency. */
 @Component({
@@ -128,6 +138,40 @@ export type IconName =
         }
         @case ('calendar') {
           <svg:rect x="3" y="4" width="18" height="18" rx="2" /><svg:path d="M16 2v4M8 2v4M3 10h18" />
+        }
+        @case ('chevron') {
+          <svg:path d="m6 9 6 6 6-6" />
+        }
+        @case ('graduation') {
+          <svg:path d="M22 10 12 5 2 10l10 5 10-5z" /><svg:path d="M6 12v5c3 2 9 2 12 0v-5M22 10v6" />
+        }
+        @case ('award') {
+          <svg:circle cx="12" cy="8" r="6" /><svg:path d="M15.5 13.5 17 22l-5-3-5 3 1.5-8.5" />
+        }
+        @case ('code') {
+          <svg:path d="m16 18 6-6-6-6M8 6l-6 6 6 6" />
+        }
+        @case ('link') {
+          <svg:path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+          <svg:path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+        }
+        @case ('globe') {
+          <svg:circle cx="12" cy="12" r="9" />
+          <svg:path d="M3 12h18" />
+          <svg:path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18" />
+        }
+        @case ('list') {
+          <svg:path d="M9 6h11M9 12h11M9 18h11" />
+          <svg:path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+        }
+        @case ('mail') {
+          <svg:rect x="2" y="4" width="20" height="16" rx="2" /><svg:path d="m22 7-10 6L2 7" />
+        }
+        @case ('phone') {
+          <svg:path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+        }
+        @case ('activity') {
+          <svg:path d="M22 12h-4l-3 9L9 3l-3 9H2" />
         }
         @case ('inbox') {
           <svg:path d="M22 12h-6l-2 3h-4l-2-3H2" />

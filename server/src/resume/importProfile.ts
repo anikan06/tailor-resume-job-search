@@ -1,11 +1,12 @@
 import { newPage } from "../browser.js";
-import type { Profile } from "../types.js";
+import type { Profile, Project } from "../types.js";
 import { extractProfileFromResume, type ResumeExtraction } from "./extractProfile.js";
 
 /**
  * Reads the user's public GitHub profile via the GitHub REST API (no auth needed,
  * 60 requests/hour per IP) and maps it onto the same shape a resume extraction
- * produces, so Settings can prefill from it the same way.
+ * produces, so Settings and the Profile page can fill in from it the same way.
+ * Their most-starred own repos become projects.
  */
 export async function importFromGitHub(urlOrUsername: string): Promise<ResumeExtraction> {
   const username = githubUsername(urlOrUsername);
@@ -18,11 +19,17 @@ export async function importFromGitHub(urlOrUsername: string): Promise<ResumeExt
     location: string | null;
     blog: string | null;
     html_url: string;
+    bio: string | null;
   };
   const repos = (await githubGet(`/users/${encodeURIComponent(username)}/repos?per_page=100&sort=pushed&type=owner`)) as {
+    name: string;
+    html_url: string;
+    description: string | null;
     fork: boolean;
+    archived?: boolean;
     language: string | null;
     topics?: string[];
+    stargazers_count: number;
   }[];
 
   // Languages weighted by how many of the user's own (non-fork) repos use them.
@@ -34,6 +41,22 @@ export async function importFromGitHub(urlOrUsername: string): Promise<ResumeExt
   }
   const skills = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([s]) => s).slice(0, 15);
 
+  // Stars first; the API's order (most recently pushed) breaks ties. Undescribed, starless repos are usually scratch work.
+  const own = repos.filter((r) => !r.fork);
+  const projects: Project[] = own
+    .filter((r) => !r.archived && (r.description || r.stargazers_count > 0))
+    .sort((a, b) => b.stargazers_count - a.stargazers_count)
+    .slice(0, 6)
+    .map((r) => stripEmpty({
+      name: r.name,
+      url: r.html_url,
+      technologies: dedupe([r.language ?? "", ...(r.topics ?? []).map(prettyTopic)]).slice(0, 4),
+      highlights: r.description ? [r.description.trim()] : [],
+    }));
+  // Topics are too loose ("Promise", "Npm Package") to list as skills on the profile; repo languages aren't.
+  const languages = dedupe(skills.filter((s) => own.some((r) => r.language === s)));
+  const bio = user.bio?.replace(/\s+/g, " ").trim();
+
   return {
     personal: stripEmpty({
       full_name: user.name ?? undefined,
@@ -44,6 +67,7 @@ export async function importFromGitHub(urlOrUsername: string): Promise<ResumeExt
     }),
     suggestedRoles: [],
     skills,
+    career: { headline: bio && bio.length <= 80 ? bio : undefined, summary: bio && bio.length > 80 ? bio : undefined, skills: languages, projects },
     source: "heuristic",
   };
 }

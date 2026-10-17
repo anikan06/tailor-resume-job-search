@@ -1,6 +1,7 @@
 import { completeText, extractJson, isAiConfigured } from "../llm.js";
 import type { LlmActivity } from "../telemetry.js";
-import type { Profile } from "../types.js";
+import type { CareerProfile, Profile } from "../types.js";
+import { careerToText, extractCareerHeuristically, stripEmptyCareer } from "./careerSections.js";
 
 export interface ResumeExtraction {
   personal: Partial<
@@ -13,6 +14,8 @@ export interface ResumeExtraction {
   suggestedRoles: string[];
   /** Skills/technologies found in the resume, most prominent first. */
   skills: string[];
+  /** Headline, summary, experience, education etc. for the Profile page. Absent in extractions saved before it existed. */
+  career?: CareerProfile;
   source: "ai" | "heuristic";
 }
 
@@ -36,6 +39,7 @@ export async function extractProfileFromResume(
       personal: { ...heuristic.personal, ...stripEmpty(ai.personal) },
       suggestedRoles: dedupe([...(ai.suggestedRoles ?? []), ...heuristic.suggestedRoles]).slice(0, 10),
       skills: dedupe([...(ai.skills ?? []), ...heuristic.skills]).slice(0, 15),
+      career: mergeCareer(stripEmptyCareer(ai.career ?? {}), heuristic.career ?? {}),
       source: "ai",
     };
   } catch (err) {
@@ -52,6 +56,15 @@ async function extractWithAI(text: string, profile: Profile, activity: LlmActivi
 "suggestedRoles": 5-8 job titles this candidate would realistically apply for next, best fit first, matching their seniority (e.g. "Senior Frontend Engineer", "Angular Architect").
 "skills": up to 12 core technical skills/tools, most prominent first.
 "years_experience": total years of professional experience as an integer, from an explicit statement or the work history dates.
+"career": the resume's content, copied faithfully (do not rewrite, summarize or invent):
+  - "headline": the candidate's current title/tagline, e.g. "Senior Frontend Engineer".
+  - "summary": the summary/objective paragraph as written, or null.
+  - "skills": every skill/tool listed in the resume.
+  - "experience": every job, most recent first; "highlights" are its bullet points verbatim; "current" is true if it runs to the present (then "end_date" is null).
+  - "education", "projects", "certifications": every entry listed.
+  - "languages": spoken languages only (programming languages go in "skills"), with proficiency if stated.
+  - "additional_sections": any other section (e.g. Achievements, Awards, Publications, Volunteering, Interests) with its heading and items verbatim; skip declarations and references.
+  - Dates exactly as written in the resume (e.g. "Jan 2020", "2019").
 
 Output ONLY valid JSON, no prose, no markdown fences, exactly this shape:
 {
@@ -60,13 +73,23 @@ Output ONLY valid JSON, no prose, no markdown fences, exactly this shape:
     "linkedin_url": string|null, "github_url": string|null, "portfolio_url": string|null, "years_experience": number|null
   },
   "suggestedRoles": string[],
-  "skills": string[]
+  "skills": string[],
+  "career": {
+    "headline": string|null, "summary": string|null, "skills": string[],
+    "experience": [{ "title": string|null, "company": string|null, "location": string|null, "start_date": string|null, "end_date": string|null, "current": boolean, "highlights": string[] }],
+    "education": [{ "institution": string|null, "degree": string|null, "field": string|null, "start_date": string|null, "end_date": string|null, "grade": string|null, "details": string[] }],
+    "projects": [{ "name": string|null, "url": string|null, "technologies": string[], "highlights": string[] }],
+    "certifications": [{ "name": string|null, "issuer": string|null, "date": string|null, "url": string|null }],
+    "languages": [{ "name": string|null, "proficiency": string|null }],
+    "additional_sections": [{ "heading": string|null, "items": string[] }]
+  }
 }
 
 RESUME TEXT:
 ${text.slice(0, 12000)}`;
 
-  return JSON.parse(extractJson(await completeText(prompt, 1000, profile, { activity })));
+  // The career block copies the whole resume, so it needs far more room than the personal details.
+  return JSON.parse(extractJson(await completeText(prompt, 6000, profile, { activity })));
 }
 
 // ---- heuristics ---------------------------------------------------------
@@ -133,6 +156,7 @@ export function extractHeuristically(text: string): ResumeExtraction {
     }),
     suggestedRoles: suggestRoles(text, skills, yearsExperience),
     skills: skills.slice(0, 15),
+    career: extractCareerHeuristically(text),
     source: "heuristic",
   };
 }
@@ -189,7 +213,39 @@ function suggestRoles(text: string, skills: string[], years: number | undefined)
   return dedupe([...held, ...inferred, ...leadership]).slice(0, 10);
 }
 
+/**
+ * Re-derives skill and role suggestions from the Profile page's career data, so
+ * skills the user adds there (and not just what the resume said) shape the
+ * suggestions. Works with or without an uploaded resume.
+ */
+export function withCareerSuggestions(
+  extracted: ResumeExtraction | undefined,
+  profile: Profile
+): ResumeExtraction | undefined {
+  const text = careerToText(profile.career);
+  if (!text) return extracted;
+  const years = profile.personal?.years_experience ?? extracted?.personal.years_experience;
+  const skills = dedupe([...(profile.career?.skills ?? []), ...extractSkills(text)]);
+  const roles = suggestRoles(text, extractSkills(text), years);
+  if (!extracted) return { personal: {}, suggestedRoles: roles, skills: skills.slice(0, 15), source: "heuristic" };
+  return {
+    ...extracted,
+    // The resume's best few stay on top; roles the profile newly supports come next.
+    suggestedRoles: dedupe([...extracted.suggestedRoles.slice(0, 4), ...roles, ...extracted.suggestedRoles]).slice(0, 10),
+    skills: dedupe([...skills, ...extracted.skills]).slice(0, 15),
+  };
+}
+
 // ---- utils --------------------------------------------------------------
+
+/** The AI's reading wins per field; heuristics only fill fields it left empty. */
+function mergeCareer(ai: CareerProfile, heuristic: CareerProfile): CareerProfile {
+  const merged: Record<string, unknown> = { ...heuristic };
+  for (const [key, value] of Object.entries(ai)) {
+    if (Array.isArray(value) ? value.length : value) merged[key] = value;
+  }
+  return merged as CareerProfile;
+}
 
 function titleCase(s: string): string {
   return s

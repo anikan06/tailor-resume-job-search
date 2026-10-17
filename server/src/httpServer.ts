@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 import express, { type Request, type Response } from "express";
 import cors from "cors";
+import type { Page } from "playwright";
 import multer from "multer";
 import { mkdirSync, existsSync, rmSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadProfile, saveProfile } from "./config.js";
+import { isCareerEmpty, loadProfile, saveProfile } from "./config.js";
 import { extractResumeText } from "./resume/parse.js";
-import { extractProfileFromResume, extractHeuristically } from "./resume/extractProfile.js";
+import { extractProfileFromResume, extractHeuristically, withCareerSuggestions } from "./resume/extractProfile.js";
 import { importFromGitHub, importFromLinkedIn } from "./resume/importProfile.js";
 import { generateResumePdf } from "./resume/pdf.js";
 import { getState, setState } from "./state.js";
 import { aggregateJobs, readCachedAggregation } from "./jobsStore.js";
-import { fetchJobDescriptionText } from "./jobDescription.js";
+import { fetchJobDescriptionText, readJobDescription } from "./jobDescription.js";
 import { tailorResumeWithAI } from "./aiTailor.js";
 import { AI_PROVIDERS, activeProvider, isAiConfigured } from "./llm.js";
 import { applyToAtsJob } from "./platforms/ats.js";
@@ -75,15 +76,22 @@ function tailoredPdfPath(jobId: string): string {
   return join(TAILORED_DIR, `${basename(jobId)}.pdf`);
 }
 
-/** Tailors (if not already done for this job) and returns the PDF path, reusing a cached tailor if present. */
-async function ensureTailoredResume(job: AggregatedJob, profile: Profile): Promise<string> {
+/**
+ * Tailors (if not already done for this job) and returns the PDF path, reusing a cached tailor if present.
+ * `readJd` reads the description from a page the caller already has open; without it the posting is
+ * fetched separately when search results didn't include a full description.
+ */
+async function ensureTailoredResume(job: AggregatedJob, profile: Profile, readJd?: () => Promise<string>): Promise<string> {
   const pdfPath = tailoredPdfPath(job.id);
   if (existsSync(pdfPath)) return pdfPath;
 
   const { resumeText } = getState();
   if (!resumeText) throw new Error("No resume uploaded yet - upload one in Settings first.");
 
-  const jdText = job.snippet && job.snippet.length > 200 ? job.snippet : await fetchJobDescriptionText(job.url, job.platform);
+  const jdText =
+    job.snippet && job.snippet.length > 200
+      ? job.snippet
+      : await (readJd ? readJd() : fetchJobDescriptionText(job.url, job.platform));
   const content = await tailorResumeWithAI(resumeText, job.title, job.company, jdText, profile, job.id);
   await generateResumePdf(content, pdfPath);
   return pdfPath;
@@ -126,9 +134,19 @@ app.post("/api/resume", upload.single("resume"), async (req: Request, res: Respo
   if (!req.file) return res.status(400).json({ error: "No file uploaded (field name must be 'resume')" });
   try {
     const text = await extractResumeText(req.file.path);
-    const extracted = await extractProfileFromResume(text, loadProfile());
+    const profile = loadProfile();
+    const extracted = await extractProfileFromResume(text, profile);
     setState({ resumePath: req.file.path, resumeText: text, resumeFileName: req.file.originalname, resumeExtraction: extracted });
-    res.json({ fileName: req.file.originalname, length: text.length, preview: text.slice(0, 400), extracted });
+    // Seed the Profile page from the first resume; after that it's the user's to edit (or re-fetch there).
+    const careerImported = isCareerEmpty(profile.career) && !isCareerEmpty(extracted.career);
+    if (careerImported) saveProfile({ career: extracted.career });
+    res.json({
+      fileName: req.file.originalname,
+      length: text.length,
+      preview: text.slice(0, 400),
+      extracted: withCareerSuggestions(extracted, loadProfile()),
+      careerImported,
+    });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
@@ -136,9 +154,10 @@ app.post("/api/resume", upload.single("resume"), async (req: Request, res: Respo
 
 app.get("/api/resume", (_req: Request, res: Response) => {
   const { resumeFileName, resumeText, resumeExtraction } = getState();
-  if (!resumeText) return res.json({ uploaded: false });
+  const profile = loadProfile();
+  if (!resumeText) return res.json({ uploaded: false, extracted: withCareerSuggestions(undefined, profile) });
   // Resumes uploaded before extraction existed get it computed (heuristics only) on first read.
-  const extracted = resumeExtraction ?? extractHeuristically(resumeText);
+  const extracted = withCareerSuggestions(resumeExtraction ?? extractHeuristically(resumeText), profile);
   res.json({ uploaded: true, fileName: resumeFileName, length: resumeText.length, preview: resumeText.slice(0, 400), extracted });
 });
 
@@ -147,6 +166,26 @@ app.delete("/api/resume", (_req: Request, res: Response) => {
   if (resumePath) rmSync(resumePath, { force: true });
   setState({ resumePath: undefined, resumeText: undefined, resumeFileName: undefined, resumeExtraction: undefined });
   res.json({ uploaded: false });
+});
+
+// ---- career profile ---------------------------------------------------------
+
+/**
+ * Reads experience/education/etc. from the uploaded resume for the Profile page to fill in;
+ * nothing is saved here. Uses the reading done at upload time unless `refresh` is set or
+ * that reading predates career extraction.
+ */
+app.post("/api/profile/career/from-resume", async (req: Request, res: Response) => {
+  const { resumeText, resumeExtraction } = getState();
+  if (!resumeText) return res.status(400).json({ error: "No resume uploaded yet - upload one in Settings first." });
+  try {
+    if (resumeExtraction?.career && !req.body?.refresh) return res.json({ career: resumeExtraction.career, source: resumeExtraction.source });
+    const extracted = await extractProfileFromResume(resumeText, loadProfile());
+    setState({ resumeExtraction: extracted });
+    res.json({ career: extracted.career ?? {}, source: extracted.source });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 // ---- profile import (LinkedIn / GitHub) ---------------------------------
@@ -233,10 +272,11 @@ app.post("/api/jobs/:id/apply", async (req: Request, res: Response) => {
   }
 
   try {
-    const resumePdfPath = await ensureTailoredResume(job, profile);
+    // Tailors inside the job page the apply flow opens, so the posting isn't opened twice.
+    const resume = (jobPage: Page) => ensureTailoredResume(job, profile, () => readJobDescription(jobPage));
 
     if (job.platform === "greenhouse" || job.platform === "lever" || job.platform === "workday") {
-      const result = await applyToAtsJob(job.platform, job.url, profile, resumePdfPath, {}, true);
+      const result = await applyToAtsJob(job.platform, job.url, profile, resume, {}, true);
       const record = await recordApplication({
         platform: job.platform,
         title: job.title,
@@ -250,10 +290,10 @@ app.post("/api/jobs/:id/apply", async (req: Request, res: Response) => {
 
     const prefill =
       job.platform === "linkedin"
-        ? await prefillLinkedInApplication(job.url, profile, resumePdfPath)
+        ? await prefillLinkedInApplication(job.url, profile, resume)
         : job.platform === "naukri"
-        ? await prefillNaukriApplication(job.url, profile, resumePdfPath)
-        : await prefillIndeedApplication(job.url, profile, resumePdfPath);
+        ? await prefillNaukriApplication(job.url, profile, resume)
+        : await prefillIndeedApplication(job.url, profile, resume);
 
     const record = await recordApplication({
       platform: job.platform,

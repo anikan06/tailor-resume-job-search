@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import type { JobListing, Platform, Profile, FieldAnswer } from "../types.js";
 import { fillApplicationForm } from "../formFiller.js";
 import { canAutoSubmit } from "../policy.js";
+import { resolveResume, type ResumeSource } from "../jobDescription.js";
 
 /**
  * Greenhouse and Lever both publish a public, unauthenticated JSON API for
@@ -78,7 +79,7 @@ export async function applyToAtsJob(
   platform: Platform,
   jobUrl: string,
   profile: Profile,
-  resumeFilePath?: string,
+  resume?: ResumeSource,
   extraAnswers: Record<string, string> = {},
   confirmSubmit = false
 ): Promise<AtsApplyResult> {
@@ -86,6 +87,8 @@ export async function applyToAtsJob(
   const page = await browser.newPage();
   try {
     await page.goto(jobUrl, { waitUntil: "domcontentloaded" });
+    // Tailoring (when the resume is a callback) reads the description from this same window.
+    const resumeFilePath = await resolveResume(resume, page);
 
     // Greenhouse/Lever often gate the actual form behind an "Apply" button.
     const applyButton = page.getByRole("button", { name: /apply/i }).first();

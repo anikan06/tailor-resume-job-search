@@ -1,0 +1,322 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Spend</p>
+      <h1>AI token usage</h1>
+      <p class="subtitle">Every call made to your AI provider: tailoring resumes, reading uploads and importing profiles.</p>
+    </div>
+    <button class="btn" (click)="refresh()" [disabled]="loading()">
+      @if (loading()) {
+        <span class="spinner"></span>
+      } @else {
+        <app-icon name="refresh" [size]="15" />
+      }
+      Refresh
+    </button>
+  </header>
+
+  @if (error(); as e) {
+    <div class="card empty">
+      <div class="empty__icon"><app-icon name="alert" [size]="24" /></div>
+      <h3>Usage unavailable</h3>
+      <p>{{ e }}</p>
+    </div>
+  }
+
+  @if (usage(); as u) {
+    @if (u.totals.calls === 0) {
+      <div class="card empty">
+        <div class="empty__icon"><app-icon name="activity" [size]="24" /></div>
+        <h3>No AI calls yet</h3>
+        <p>Token usage shows up here once you tailor a resume, upload one, or import a profile.</p>
+        <a class="btn btn--primary" routerLink="/dashboard"><app-icon name="grid" [size]="15" /> Go to dashboard</a>
+      </div>
+    } @else {
+      <section class="stats">
+        <div class="card stat" [title]="tokenTitle(u.totals)">
+          <span class="stat__icon"><app-icon name="sparkles" /></span>
+          <div>
+            <div class="stat__value">{{ formatTokens(u.totals.totalTokens) }}</div>
+            <div class="stat__label">Total tokens</div>
+          </div>
+        </div>
+        <div class="card stat">
+          <span class="stat__icon"><app-icon name="upload" /></span>
+          <div>
+            <div class="stat__value">{{ formatTokens(u.totals.inputTokens) }} <small>/ {{ formatTokens(u.totals.outputTokens) }}</small></div>
+            <div class="stat__label">
+              Input / output@if (u.totals.reasoningTokens) { &middot; {{ formatTokens(u.totals.reasoningTokens) }} thinking}@if (u.totals.cachedInputTokens) { &middot; {{ formatTokens(u.totals.cachedInputTokens) }} cached}
+            </div>
+          </div>
+        </div>
+        <div class="card stat">
+          <span class="stat__icon stat__icon--green"><app-icon name="file" /></span>
+          <div>
+            <div class="stat__value">{{ formatTokens(tailorAverage()) }}</div>
+            <div class="stat__label">Avg per tailored resume</div>
+          </div>
+        </div>
+        <div class="card stat">
+          <span class="stat__icon" [class.stat__icon--red]="u.totals.failedCalls"><app-icon name="message" /></span>
+          <div>
+            <div class="stat__value">{{ u.totals.calls }}</div>
+            <div class="stat__label">AI calls{{ u.totals.failedCalls ? ' · ' + u.totals.failedCalls + ' failed' : '' }}</div>
+          </div>
+        </div>
+      </section>
+
+      @if (providers().length) {
+        <section class="providers">
+          @for (p of providers(); track p.provider) {
+            <div class="card provider">
+              <div class="provider__head">
+                <h3>{{ p.label }}</h3>
+                @if (p.totals.failedCalls) {
+                  <span class="badge badge--red">{{ p.totals.failedCalls }} failed</span>
+                }
+              </div>
+              <dl class="provider__stats">
+                <div>
+                  <dt>Tokens</dt>
+                  <dd [title]="tokenTitle(p.totals)">{{ formatTokens(p.totals.totalTokens) }}</dd>
+                </div>
+                <div>
+                  <dt>Calls</dt>
+                  <dd>{{ p.totals.calls }}</dd>
+                </div>
+                <div>
+                  <dt>Input</dt>
+                  <dd>{{ formatTokens(p.totals.inputTokens) }}</dd>
+                </div>
+                <div>
+                  <dt>Output</dt>
+                  <dd>{{ formatTokens(p.totals.outputTokens) }}</dd>
+                </div>
+                <div>
+                  <dt>Thinking</dt>
+                  <dd>{{ p.totals.reasoningTokens ? formatTokens(p.totals.reasoningTokens) : '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Cache hits</dt>
+                  <dd>{{ p.totals.cachedInputTokens ? (p.cachedShare | number: '1.0-1') + '%' : '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Avg time</dt>
+                  <dd>{{ formatDuration(p.avgMs) }}</dd>
+                </div>
+              </dl>
+              @if (p.rateLimit; as r) {
+                <div class="limits">
+                  <p class="limits__title">
+                    Rate limit <span class="hint">as of {{ r.at | date: 'MMM d, h:mm a' }}</span>
+                  </p>
+                  @if (r.requestsRemaining !== undefined) {
+                    <div class="limit">
+                      <span>Requests</span>
+                      <div class="share"><div class="share__fill" [style.width.%]="remainingShare(r.requestsRemaining, r.requestsLimit) ?? 100"></div></div>
+                      <span class="num" [title]="r.requestsReset ? 'Resets ' + r.requestsReset : ''">{{ limitText(r.requestsRemaining, r.requestsLimit) }}</span>
+                    </div>
+                  }
+                  @if (r.tokensRemaining !== undefined) {
+                    <div class="limit">
+                      <span>Tokens</span>
+                      <div class="share"><div class="share__fill" [style.width.%]="remainingShare(r.tokensRemaining, r.tokensLimit) ?? 100"></div></div>
+                      <span class="num" [title]="r.tokensReset ? 'Resets ' + r.tokensReset : ''">{{ limitText(r.tokensRemaining, r.tokensLimit) }}</span>
+                    </div>
+                  }
+                </div>
+              } @else if (p.provider === 'gemini') {
+                <p class="hint provider__note">Gemini doesn't report rate-limit headroom; check aistudio.google.com.</p>
+              } @else if (p.provider === 'ollama') {
+                <p class="hint provider__note">Runs locally: no rate limits or billing.</p>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      @if (stopReasons().length) {
+        <section class="card stops">
+          <h2>How replies ended</h2>
+          <div class="stops__list">
+            @for (r of stopReasons(); track r.reason) {
+              <span class="stop" [class.stop--warn]="r.kind === 'truncated'" [class.stop--bad]="r.kind === 'blocked'" [title]="stopTitle(r.kind)">
+                <span class="mono">{{ r.reason }}</span> <strong>{{ r.count }}</strong>
+              </span>
+            }
+          </div>
+        </section>
+      }
+
+      <section class="card chart-card">
+        <div class="section-head">
+          <h2>Last 14 days</h2>
+          <span class="hint">Avg call time {{ formatDuration(averageDurationMs()) }}</span>
+        </div>
+        <div class="chart" role="img" aria-label="Tokens per day over the last 14 days">
+          @for (d of days(); track d.day) {
+            <div class="chart__col" [title]="dayTitle(d)">
+              <span class="chart__value">{{ d.totals ? formatTokens(d.totals.totalTokens) : '' }}</span>
+              <div class="chart__track">
+                <div class="chart__bar" [class.chart__bar--failed]="d.totals?.failedCalls" [style.height.%]="d.height"></div>
+              </div>
+              <span class="chart__label">{{ d.date | date: 'd' }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="card table-card">
+          <div class="section-head section-head--pad"><h2>By activity</h2></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Activity</th>
+                <th class="right">Calls</th>
+                <th class="right">Tokens</th>
+                <th class="share-col">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of activities(); track a.key) {
+                <tr>
+                  <td>{{ a.label }}</td>
+                  <td class="right muted">{{ a.totals.calls }}@if (a.totals.failedCalls) {<span class="failed"> · {{ a.totals.failedCalls }} failed</span>}</td>
+                  <td class="right" [title]="tokenTitle(a.totals)">{{ formatTokens(a.totals.totalTokens) }}</td>
+                  <td class="share-col"><div class="share"><div class="share__fill" [style.width.%]="a.share"></div></div></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card table-card">
+          <div class="section-head section-head--pad"><h2>By model</h2></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th class="right">Calls</th>
+                <th class="right">Tokens</th>
+                <th class="share-col">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of models(); track m.key) {
+                <tr>
+                  <td class="mono">{{ m.label }}</td>
+                  <td class="right muted">{{ m.totals.calls }}@if (m.totals.failedCalls) {<span class="failed"> · {{ m.totals.failedCalls }} failed</span>}</td>
+                  <td class="right" [title]="tokenTitle(m.totals)">{{ formatTokens(m.totals.totalTokens) }}</td>
+                  <td class="share-col"><div class="share"><div class="share__fill" [style.width.%]="m.share"></div></div></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <section class="card table-card">
+        <div class="table-toolbar">
+          <h2>Recent calls <span class="hint">(last {{ recentLimit }})</span></h2>
+          <div class="segmented" role="tablist">
+            @for (f of filters; track f.key) {
+              <button role="tab" [class.active]="filter() === f.key" [attr.aria-selected]="filter() === f.key" (click)="filter.set(f.key)">
+                {{ f.label }} <span class="count">{{ counts()[f.key] }}</span>
+              </button>
+            }
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Activity</th>
+                <th>Model</th>
+                <th class="right">Input</th>
+                <th class="right">Output</th>
+                <th class="right">Total</th>
+                <th class="right">Time</th>
+                <th>Status</th>
+                <th><span class="sr-only">Details</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of calls(); track $index) {
+                <tr class="call" [class.call--open]="expanded() === c" (click)="toggle(c)">
+                  <td class="muted nowrap">
+                    {{ c.at | date: 'MMM d' }}
+                    <small>{{ c.at | date: 'h:mm:ss a' }}</small>
+                  </td>
+                  <td>
+                    <div class="activity">
+                      <span>{{ activityLabel(c.activity) }}</span>
+                      @if (jobFor(c); as j) {
+                        <small [title]="j.title + ' at ' + j.company">{{ j.title }} &middot; {{ j.company }}</small>
+                      }
+                    </div>
+                  </td>
+                  <td class="mono muted nowrap">{{ c.provider }}/{{ c.model }}</td>
+                  <td class="right num">{{ c.inputTokens.toLocaleString() }}</td>
+                  <td class="right num">
+                    {{ c.outputTokens.toLocaleString() }}
+                    @if (c.reasoningTokens) {
+                      <small title="Reasoning (thinking) tokens, billed as output">+{{ c.reasoningTokens.toLocaleString() }} thinking</small>
+                    }
+                  </td>
+                  <td class="right num strong">{{ c.totalTokens.toLocaleString() }}</td>
+                  <td class="right muted num">{{ formatDuration(c.durationMs) }}</td>
+                  <td>
+                    @if (!c.ok) {
+                      <span class="badge badge--red" [title]="c.error ?? ''">Failed</span>
+                    } @else if (stopKind(c.stopReason) === 'truncated') {
+                      <span class="badge badge--amber" [title]="stopTitle('truncated')">Cut off</span>
+                    } @else if (stopKind(c.stopReason) === 'blocked') {
+                      <span class="badge badge--red" [title]="stopTitle('blocked')">Blocked</span>
+                    } @else {
+                      <span class="badge badge--green">OK</span>
+                    }
+                  </td>
+                  <td class="right">
+                    <button
+                      class="btn btn--ghost btn--icon expander"
+                      [attr.aria-expanded]="expanded() === c"
+                      [attr.aria-label]="expanded() === c ? 'Hide details' : 'Show details'"
+                    >
+                      <app-icon name="chevron" [size]="16" />
+                    </button>
+                  </td>
+                </tr>
+                @if (expanded() === c) {
+                  <tr class="details-row">
+                    <td colspan="9">
+                      <dl class="details">
+                        @for (d of detailRows(c); track d.label) {
+                          <div [title]="d.hint ?? ''">
+                            <dt>{{ d.label }}</dt>
+                            <dd [class.mono]="d.mono">{{ d.value }}</dd>
+                          </div>
+                        }
+                      </dl>
+                      @if (c.error) {
+                        <p class="details__error"><strong>Error:</strong> {{ c.error }}</p>
+                      }
+                      @if (!c.promptChars && c.promptChars !== 0) {
+                        <p class="hint">Logged before detailed telemetry was added, so provider metadata isn't available for this call.</p>
+                      }
+                    </td>
+                  </tr>
+                }
+              } @empty {
+                <tr>
+                  <td colspan="9" class="no-rows">No calls match this filter.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+</div>

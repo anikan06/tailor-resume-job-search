@@ -141,6 +141,7 @@ export class SettingsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.resume.set({ uploaded: true, ...res });
         this.uploading.set(false);
         this.prefillFrom(res.extracted, 'CV');
+        if (res.careerImported) this.flash({ text: 'Experience, education and skills added to your Profile', tone: 'success' });
       },
       error: (err) => {
         this.flash({ text: `Resume upload failed: ${err.error?.error ?? err.message}`, tone: 'error' });

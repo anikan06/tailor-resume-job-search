@@ -5,13 +5,17 @@ import {
   AggregationResult,
   ApplicationRecord,
   ApplyResult,
+  CareerProfile,
   Profile,
   ResumeExtraction,
   ResumeInfo,
   UsageSummary
 } from './models';
 
-export type ResumeUploadResult = Required<Pick<ResumeInfo, 'fileName' | 'length' | 'preview' | 'extracted'>>;
+export type ResumeUploadResult = Required<Pick<ResumeInfo, 'fileName' | 'length' | 'preview' | 'extracted'>> & {
+  /** The profile was empty, so the resume's experience/education/etc. were saved to it. */
+  careerImported?: boolean;
+};
 
 const BASE = 'http://localhost:4000/api';
 
@@ -25,6 +29,11 @@ export class ApiService {
 
   saveProfile(profile: Partial<Profile>): Observable<Profile> {
     return this.http.put<Profile>(`${BASE}/profile`, profile);
+  }
+
+  /** Experience, education etc. read from the uploaded resume (not saved). `refresh` re-reads it. */
+  getCareerFromResume(refresh = false): Observable<{ career: CareerProfile; source: 'ai' | 'heuristic' }> {
+    return this.http.post<{ career: CareerProfile; source: 'ai' | 'heuristic' }>(`${BASE}/profile/career/from-resume`, { refresh });
   }
 
   getResume(): Observable<ResumeInfo> {
@@ -86,8 +95,8 @@ export class ApiService {
   }
 
   /** Token usage of every AI call so far (tailoring, resume reading, profile import). */
-  getUsage(): Observable<UsageSummary> {
-    return this.http.get<UsageSummary>(`${BASE}/usage`);
+  getUsage(recentLimit = 50): Observable<UsageSummary> {
+    return this.http.get<UsageSummary>(`${BASE}/usage`, { params: { limit: recentLimit } });
   }
 
   downloadUrl(path: string): string {
