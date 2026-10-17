@@ -112,5 +112,5 @@ step "Pushing $BRANCH"
 git push --quiet -u origin "$BRANCH"
 
 step "Opening pull request"
-url="$(gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$BODY_FILE" "${DRAFT[@]}")"
+url="$(gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$BODY_FILE" ${DRAFT[@]+"${DRAFT[@]}"})"  # bash 3.2-safe empty array
 echo "PR: $url"

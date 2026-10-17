@@ -32,21 +32,22 @@ for (const f of files) {
   }
 }
 
-// Text written to a file through `cat > f <<EOF` / `tee` is content, not commands
+// Text written through `cat > f <<EOF`, `tee` or `git commit -F - <<EOF` is content, not commands
 // (docs often mention the very things this guard blocks). Interpreter heredocs
 // such as `python3 - <<EOF` are code, so they are still checked.
 const stripFileHeredocs = (s) =>
-  s.replace(/(\b(?:cat|tee)\b[^\n]*<<-?\s*['"]?(\w+)['"]?[^\n]*)\n[\s\S]*?\n\s*\2[ \t]*(?=\n|$)/g, "$1");
+  s.replace(/(\b(?:cat|tee|git\s+commit)\b[^\n]*<<-?\s*['"]?(\w+)['"]?[^\n]*)\n[\s\S]*?\n\s*\2[ \t]*(?=\n|$)/g, "$1");
 
 const cmd = shellCommand(input) && stripFileHeredocs(shellCommand(input));
 if (cmd) {
   const DANGEROUS = [
     [/\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+(\/|~|\$HOME|\.|\*)(\s|$)/, "recursive delete of a root, home or the whole repo"],
-    [/\bgit\s+push\b.*(\s--force(?!-with-lease)|\s-f\b)/, "force push (use --force-with-lease, and only if the user asked)"],
+    // [^;&|\n]* keeps each rule inside one command, so a later `rm -f` doesn't count.
+    [/\bgit\s+push\b[^;&|\n]*(\s--force(?!-with-lease)|\s-f\b|\s\+\S)/, "force push (use --force-with-lease, and only if the user asked)"],
     [/\bgit\s+reset\s+--hard\b/, "git reset --hard discards uncommitted work"],
     [/\bgit\s+clean\s+-[a-zA-Z]*f/, "git clean deletes untracked files"],
     [/\bgit\s+(checkout|restore)\s+(--\s+)?\.(\s|$)/, "discards all uncommitted changes"],
-    [/\bgit\s+(commit|push)\b.*--no-verify/, "skipping git hooks"],
+    [/\bgit\s+(commit|push)\b[^;&|\n]*--no-verify/, "skipping git hooks"],
     // Only when curl/wget is in command position, so docs that mention it don't trip.
     [/(^|[;&|(]\s*|\n\s*)(curl|wget)\b[^|\n]*\|\s*(sudo\s+)?(ba|z)?sh\b/, "piping a download into a shell"],
     [/\bnpm\s+publish\b/, "publishing a package"],
