@@ -201,6 +201,29 @@
         }
       </section>
 
+      <!-- Apply mode -->
+      <section id="apply" class="card">
+        <div class="section-head">
+          <span class="section-head__icon"><app-icon name="send" /></span>
+          <div>
+            <h2>How to apply</h2>
+            <p class="hint">Let the app fill in applications for you, or just get a tailored resume and apply yourself.</p>
+          </div>
+        </div>
+        @defer (on viewport; prefetch on idle) {
+          <app-apply-section [profile]="profile()" />
+        } @placeholder {
+          <div class="section-skeleton" aria-hidden="true">
+            @for (r of rowsOf(1); track $index) {
+              <div class="skeleton section-skeleton__label"></div>
+              <div class="skeleton section-skeleton__input"></div>
+            }
+          </div>
+        } @error {
+          <p class="hint">This section failed to load &mdash; refresh the page to retry.</p>
+        }
+      </section>
+
       <!-- Custom answers -->
       <section id="answers" class="card">
         <div class="section-head">

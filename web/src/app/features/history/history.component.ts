@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { ApplicationRecord } from '../../core/models';
+import { ApplicationRecord, UsageSummary, UsageTotals } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
 import { ResumePreviewDialogComponent } from '../../shared/resume-preview-dialog.component';
 import { companyHue, companyInitial } from '../../shared/avatar';
@@ -32,6 +32,7 @@ export class HistoryComponent implements OnInit {
   query = signal('');
   /** Application whose tailored resume is open in the preview dialog. */
   previewRecord = signal<ApplicationRecord | null>(null);
+  usage = signal<UsageSummary | null>(null);
 
   readonly companyHue = companyHue;
   readonly companyInitial = companyInitial;
@@ -45,6 +46,26 @@ export class HistoryComponent implements OnInit {
     }
     return c;
   });
+
+  /** Tokens spent on everything but tailoring: reading uploaded resumes and imported profiles. */
+  otherUsage = computed<UsageTotals | null>(() => {
+    const u = this.usage();
+    if (!u) return null;
+    const tailor = u.byActivity.tailor_resume;
+    return {
+      calls: u.totals.calls - (tailor?.calls ?? 0),
+      failedCalls: u.totals.failedCalls - (tailor?.failedCalls ?? 0),
+      inputTokens: u.totals.inputTokens - (tailor?.inputTokens ?? 0),
+      outputTokens: u.totals.outputTokens - (tailor?.outputTokens ?? 0),
+      totalTokens: u.totals.totalTokens - (tailor?.totalTokens ?? 0)
+    };
+  });
+
+  models = computed(() =>
+    Object.entries(this.usage()?.byModel ?? {})
+      .map(([name, totals]) => ({ name, totals }))
+      .sort((a, b) => b.totals.totalTokens - a.totals.totalTokens)
+  );
 
   filters: { key: StatusFilter; label: string }[] = [
     { key: 'all', label: 'All' },
@@ -73,6 +94,23 @@ export class HistoryComponent implements OnInit {
       },
       error: () => this.loaded.set(true)
     });
+    this.api.getUsage().subscribe({ next: (u) => this.usage.set(u), error: () => this.usage.set(null) });
+  }
+
+  jobUsage(jobId: string): UsageTotals | undefined {
+    return this.usage()?.byJob[jobId];
+  }
+
+  /** 1234 -> "1.2k", 2_500_000 -> "2.5M". */
+  formatTokens(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+    return String(n);
+  }
+
+  tokenTitle(t: UsageTotals): string {
+    const failed = t.failedCalls ? `, ${t.failedCalls} failed` : '';
+    return `${t.inputTokens.toLocaleString()} in / ${t.outputTokens.toLocaleString()} out, ${t.calls} call${t.calls === 1 ? '' : 's'}${failed}`;
   }
 
   statusLabel(status: Status): string {

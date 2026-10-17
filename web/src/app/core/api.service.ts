@@ -7,7 +7,8 @@ import {
   ApplyResult,
   Profile,
   ResumeExtraction,
-  ResumeInfo
+  ResumeInfo,
+  UsageSummary
 } from './models';
 
 export type ResumeUploadResult = Required<Pick<ResumeInfo, 'fileName' | 'length' | 'preview' | 'extracted'>>;
@@ -62,6 +63,11 @@ export class ApiService {
     return `${BASE}/tailored/${encodeURIComponent(jobId)}.pdf`;
   }
 
+  /** Download file name for a job's tailored resume. */
+  tailoredPdfFileName(company: string, title: string): string {
+    return `Resume - ${company} - ${title}`;
+  }
+
   /** Same PDF, served as an attachment named `fileName`. */
   tailoredPdfDownloadUrl(jobId: string, fileName: string): string {
     return `${this.tailoredPdfUrl(jobId)}?download=1&name=${encodeURIComponent(fileName)}`;
@@ -77,6 +83,11 @@ export class ApiService {
 
   getApplications(): Observable<ApplicationRecord[]> {
     return this.http.get<ApplicationRecord[]>(`${BASE}/applications`);
+  }
+
+  /** Token usage of every AI call so far (tailoring, resume reading, profile import). */
+  getUsage(): Observable<UsageSummary> {
+    return this.http.get<UsageSummary>(`${BASE}/usage`);
   }
 
   downloadUrl(path: string): string {

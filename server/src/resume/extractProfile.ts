@@ -1,4 +1,5 @@
 import { completeText, extractJson, isAiConfigured } from "../llm.js";
+import type { LlmActivity } from "../telemetry.js";
 import type { Profile } from "../types.js";
 
 export interface ResumeExtraction {
@@ -21,12 +22,16 @@ export interface ResumeExtraction {
  * if the user has configured an AI provider, its reading takes priority
  * and the heuristics only fill whatever it left blank.
  */
-export async function extractProfileFromResume(text: string, profile: Profile): Promise<ResumeExtraction> {
+export async function extractProfileFromResume(
+  text: string,
+  profile: Profile,
+  activity: LlmActivity = "extract_resume"
+): Promise<ResumeExtraction> {
   const heuristic = extractHeuristically(text);
   if (!isAiConfigured(profile)) return heuristic;
 
   try {
-    const ai = await extractWithAI(text, profile);
+    const ai = await extractWithAI(text, profile, activity);
     return {
       personal: { ...heuristic.personal, ...stripEmpty(ai.personal) },
       suggestedRoles: dedupe([...(ai.suggestedRoles ?? []), ...heuristic.suggestedRoles]).slice(0, 10),
@@ -41,7 +46,7 @@ export async function extractProfileFromResume(text: string, profile: Profile): 
 
 // ---- AI ---------------------------------------------------------------
 
-async function extractWithAI(text: string, profile: Profile): Promise<Omit<ResumeExtraction, "source">> {
+async function extractWithAI(text: string, profile: Profile, activity: LlmActivity): Promise<Omit<ResumeExtraction, "source">> {
   const prompt = `Extract structured details from this resume. Only use information actually present in the text; use null for anything missing.
 
 "suggestedRoles": 5-8 job titles this candidate would realistically apply for next, best fit first, matching their seniority (e.g. "Senior Frontend Engineer", "Angular Architect").
@@ -61,7 +66,7 @@ Output ONLY valid JSON, no prose, no markdown fences, exactly this shape:
 RESUME TEXT:
 ${text.slice(0, 12000)}`;
 
-  return JSON.parse(extractJson(await completeText(prompt, 1000, profile)));
+  return JSON.parse(extractJson(await completeText(prompt, 1000, profile, { activity })));
 }
 
 // ---- heuristics ---------------------------------------------------------

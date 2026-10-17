@@ -86,7 +86,7 @@ export async function importFromLinkedIn(url: string | undefined, profile: Profi
     const profileUrl = linkedinProfileUrl(page.url()) ?? target;
 
     // Put the name and headline first so the resume heuristics read them as a header.
-    const extracted = await extractProfileFromResume([name, headline, location, text].filter(Boolean).join("\n"), profile);
+    const extracted = await extractProfileFromResume([name, headline, location, text].filter(Boolean).join("\n"), profile, "import_profile");
     return {
       ...extracted,
       personal: stripEmpty({

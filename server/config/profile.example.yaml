@@ -60,3 +60,9 @@ custom_question_answers:
 # precedence - this is just a convenient default.
 resume:
   default_path: "./resume.pdf"
+
+# Set tailor_only to true to have "Apply" only tailor your resume and hand you
+# the PDF to download - no browser is opened and no form is filled or
+# submitted, so you can apply yourself on any website.
+apply:
+  tailor_only: false

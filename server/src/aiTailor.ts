@@ -20,7 +20,8 @@ export async function tailorResumeWithAI(
   jobTitle: string,
   company: string,
   jobDescription: string,
-  profile: Profile
+  profile: Profile,
+  jobId?: string
 ): Promise<TailorContentResult> {
   const prompt = `You are tailoring a real candidate's resume for one specific job application.
 
@@ -45,7 +46,7 @@ ${jobDescription.slice(0, 6000)}
 RESUME TEXT:
 ${resumeText.slice(0, 12000)}`;
 
-  const jsonText = extractJson(await completeText(prompt, 2000, profile));
+  const jsonText = extractJson(await completeText(prompt, 2000, profile, { activity: "tailor_resume", jobId }));
   try {
     return JSON.parse(jsonText) as TailorContentResult;
   } catch (err) {

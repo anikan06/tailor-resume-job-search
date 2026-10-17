@@ -123,7 +123,9 @@
             }
             <div class="job__tags">
               <span class="badge badge--plain">{{ platformLabel(job) }}</span>
-              @if (job.autoSubmitEligible) {
+              @if (tailorOnly()) {
+                <span class="badge badge--amber">You apply</span>
+              } @else if (job.autoSubmitEligible) {
                 <span class="badge badge--green">Auto-submit</span>
               } @else {
                 <span class="badge badge--amber">You submit</span>
@@ -139,7 +141,15 @@
               <div class="relevance__track"><div class="relevance__fill" [style.width.%]="job.relevanceScore"></div></div>
             </div>
 
-            @if (job.alreadyApplied && !stateFor(job).message) {
+            @if (tailorOnly()) {
+              <button class="btn btn--primary" (click)="tailorAndDownload(job)" [disabled]="stateFor(job).busy">
+                @if (stateFor(job).busy) {
+                  <span class="spinner"></span> Tailoring…
+                } @else {
+                  <app-icon name="download" [size]="15" /> {{ job.tailored ? 'Download resume' : 'Tailor & Download' }}
+                }
+              </button>
+            } @else if (job.alreadyApplied && !stateFor(job).message) {
               <span class="applied"><app-icon name="check" [size]="15" /> Applied</span>
             } @else {
               <button
@@ -160,7 +170,7 @@
               <button class="btn btn--sm btn--ghost" (click)="previewJob.set(job)">
                 <app-icon name="file" [size]="15" /> View resume
               </button>
-            } @else if (!job.alreadyApplied) {
+            } @else if (!job.alreadyApplied && !tailorOnly()) {
               <button class="btn btn--sm" (click)="tailor(job)" [disabled]="stateFor(job).busy">
                 <app-icon name="sparkles" [size]="15" /> Tailor resume
               </button>

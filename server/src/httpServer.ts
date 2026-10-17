@@ -23,6 +23,7 @@ import { prefillIndeedApplication } from "./platforms/indeed.js";
 import { findExisting, recordApplication, listApplications } from "./tracker.js";
 import { policyExplanation, canAutoSubmit } from "./policy.js";
 import { applySchedule } from "./scheduler.js";
+import { summarizeLlmUsage } from "./telemetry.js";
 import type { Profile, AggregatedJob } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -83,7 +84,7 @@ async function ensureTailoredResume(job: AggregatedJob, profile: Profile): Promi
   if (!resumeText) throw new Error("No resume uploaded yet - upload one in Settings first.");
 
   const jdText = job.snippet && job.snippet.length > 200 ? job.snippet : await fetchJobDescriptionText(job.url, job.platform);
-  const content = await tailorResumeWithAI(resumeText, job.title, job.company, jdText, profile);
+  const content = await tailorResumeWithAI(resumeText, job.title, job.company, jdText, profile, job.id);
   await generateResumePdf(content, pdfPath);
   return pdfPath;
 }
@@ -223,6 +224,9 @@ app.post("/api/jobs/:id/apply", async (req: Request, res: Response) => {
   if (!job) return res.status(404).json({ error: "Job not found in the last aggregation - re-run aggregate first." });
 
   const profile = loadProfile();
+  if (profile.apply?.tailor_only) {
+    return res.status(409).json({ error: "Tailor-only mode is on in Settings - tailor and download the resume instead." });
+  }
   const existing = await findExisting(job.url);
   if (existing && !req.body?.force) {
     return res.json({ status: "skipped_duplicate", existing });
@@ -277,6 +281,13 @@ app.get("/api/jobs/:id/policy", async (req: Request, res: Response) => {
   const job = await findCachedJob(req.params.id);
   if (!job) return res.status(404).json({ error: "Job not found." });
   res.json({ explanation: policyExplanation(job.platform), autoSubmitEligible: canAutoSubmit(job.platform) });
+});
+
+// ---- LLM usage telemetry ---------------------------------------------------
+
+app.get("/api/usage", (req: Request, res: Response) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+  res.json(summarizeLlmUsage(limit));
 });
 
 // ---- applications & schedule --------------------------------------------

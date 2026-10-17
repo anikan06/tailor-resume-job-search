@@ -5,6 +5,7 @@ import { Profile, ResumeExtraction, ResumeInfo } from '../../core/models';
 import { IconComponent, IconName } from '../../shared/icon.component';
 import { AiSectionComponent } from './sections/ai-section.component';
 import { AnswersSectionComponent } from './sections/answers-section.component';
+import { ApplySectionComponent } from './sections/apply-section.component';
 import { BoardsSectionComponent } from './sections/boards-section.component';
 import { ImportSource, PersonalSectionComponent } from './sections/personal-section.component';
 import { ScheduleSectionComponent } from './sections/schedule-section.component';
@@ -25,7 +26,8 @@ function normalizeProfile(p: Partial<Profile> = {}): Profile {
     custom_question_answers: p.custom_question_answers ?? [],
     boards: { greenhouse: p.boards?.greenhouse ?? [], lever: p.boards?.lever ?? [] },
     ai: { ...p.ai },
-    schedule: { enabled: false, cron: '0 7 * * *', ...p.schedule }
+    schedule: { enabled: false, cron: '0 7 * * *', ...p.schedule },
+    apply: { tailor_only: false, ...p.apply }
   };
 }
 
@@ -40,6 +42,7 @@ function normalizeProfile(p: Partial<Profile> = {}): Profile {
     SearchSectionComponent,
     BoardsSectionComponent,
     AiSectionComponent,
+    ApplySectionComponent,
     AnswersSectionComponent,
     ScheduleSectionComponent
   ],
@@ -71,6 +74,7 @@ export class SettingsComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'search', label: 'Job preferences', icon: 'target' },
     { id: 'boards', label: 'Career pages', icon: 'building' },
     { id: 'ai', label: 'AI tailoring', icon: 'sparkles' },
+    { id: 'apply', label: 'How to apply', icon: 'send' },
     { id: 'answers', label: 'Question answers', icon: 'message' },
     { id: 'schedule', label: 'Schedule', icon: 'calendar' }
   ];
@@ -238,7 +242,8 @@ export class SettingsComponent implements OnInit, AfterViewInit, OnDestroy {
         ollama_base_url: current.ai?.ollama_base_url ?? '',
         ...(this.apiKeyInput && provider !== 'ollama' ? { [`${provider}_api_key`]: this.apiKeyInput } : {})
       },
-      schedule: current.schedule
+      schedule: current.schedule,
+      apply: current.apply
     };
 
     this.saving.set(true);

@@ -38,6 +38,61 @@
     </div>
   </section>
 
+  @if (usage(); as u) {
+    <section class="usage">
+      <h2 class="usage__heading">AI token usage</h2>
+      <div class="stats">
+        <div class="card stat" [title]="tokenTitle(u.totals)">
+          <span class="stat__icon"><app-icon name="sparkles" /></span>
+          <div>
+            <div class="stat__value">{{ formatTokens(u.totals.totalTokens) }}</div>
+            <div class="stat__label">Total tokens</div>
+          </div>
+        </div>
+        @if (u.byActivity.tailor_resume; as t) {
+          <div class="card stat" [title]="tokenTitle(t)">
+            <span class="stat__icon"><app-icon name="file" /></span>
+            <div>
+              <div class="stat__value">{{ formatTokens(t.totalTokens) }}</div>
+              <div class="stat__label">Tailoring &middot; ~{{ formatTokens(t.calls ? t.totalTokens / t.calls : 0) }} per resume</div>
+            </div>
+          </div>
+        } @else {
+          <div class="card stat">
+            <span class="stat__icon"><app-icon name="file" /></span>
+            <div>
+              <div class="stat__value">0</div>
+              <div class="stat__label">Tailoring</div>
+            </div>
+          </div>
+        }
+        @if (otherUsage(); as o) {
+          <div class="card stat" [title]="tokenTitle(o)">
+            <span class="stat__icon"><app-icon name="user" /></span>
+            <div>
+              <div class="stat__value">{{ formatTokens(o.totalTokens) }}</div>
+              <div class="stat__label">Resume reading &amp; imports</div>
+            </div>
+          </div>
+        }
+        <div class="card stat">
+          <span class="stat__icon" [class.stat__icon--red]="u.totals.failedCalls"><app-icon name="message" /></span>
+          <div>
+            <div class="stat__value">{{ u.totals.calls }}</div>
+            <div class="stat__label">AI calls{{ u.totals.failedCalls ? ' · ' + u.totals.failedCalls + ' failed' : '' }}</div>
+          </div>
+        </div>
+      </div>
+      @if (models().length) {
+        <p class="usage__models">
+          @for (m of models(); track m.name) {
+            <span [title]="tokenTitle(m.totals)"><span class="mono">{{ m.name }}</span> {{ formatTokens(m.totals.totalTokens) }}</span>
+          }
+        </p>
+      }
+    </section>
+  }
+
   @if (loaded() && records().length === 0) {
     <div class="card empty">
       <div class="empty__icon"><app-icon name="clock" [size]="24" /></div>
@@ -69,6 +124,7 @@
               <th>Platform</th>
               <th>Status</th>
               <th>Applied</th>
+              <th class="right">AI tokens</th>
               <th class="right"><span class="sr-only">Link</span></th>
             </tr>
           </thead>
@@ -93,6 +149,13 @@
                   {{ r.appliedAt | date: 'MMM d, y' }}
                   <small>{{ r.appliedAt | date: 'h:mm a' }}</small>
                 </td>
+                <td class="right muted nowrap">
+                  @if (jobUsage(r.id); as t) {
+                    <span [title]="tokenTitle(t)">{{ formatTokens(t.totalTokens) }}</span>
+                  } @else {
+                    &mdash;
+                  }
+                </td>
                 <td class="right nowrap">
                   @if (r.tailored) {
                     <button class="btn btn--ghost btn--icon" (click)="previewRecord.set(r)" title="View tailored resume">
@@ -106,7 +169,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="5" class="no-rows">No applications match this filter.</td>
+                <td colspan="6" class="no-rows">No applications match this filter.</td>
               </tr>
             }
           </tbody>

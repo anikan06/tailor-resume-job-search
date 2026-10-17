@@ -34,6 +34,11 @@ posture. Even on the auto-submit-eligible platforms, a job with any
 application field the system couldn't confidently answer stops short of
 submitting and leaves the browser open for you instead.
 
+Prefer to apply yourself? Turn on **Settings → How to apply → Tailor my resume
+only**. The dashboard's button then becomes **Tailor & Download**: it tailors
+the resume for that job and downloads the PDF, with no browser automation at
+all, so you can apply on any website by hand.
+
 ## One-time setup
 
 ```bash

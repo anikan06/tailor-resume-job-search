@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AiProvider, Profile } from "./types.js";
+import { recordLlmUsage, type LlmCallContext, type TokenUsage } from "./telemetry.js";
 
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai", "gemini", "ollama"];
 
@@ -29,12 +30,20 @@ export function isAiConfigured(profile: Profile): boolean {
   return provider === "ollama" || Boolean(profile.ai?.[`${provider}_api_key`]);
 }
 
+interface Completion {
+  text: string;
+  usage: TokenUsage;
+}
+
+const NO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+
 /**
  * Sends one prompt to the user's chosen provider and returns its text reply.
  * Keys come only from the local profile.yaml and are only ever sent to that
- * provider's own API (or the user's own Ollama server).
+ * provider's own API (or the user's own Ollama server). Every call, failed or
+ * not, is logged with its token usage via telemetry.ts.
  */
-export async function completeText(prompt: string, maxTokens: number, profile: Profile): Promise<string> {
+export async function completeText(prompt: string, maxTokens: number, profile: Profile, context: LlmCallContext): Promise<string> {
   const provider = activeProvider(profile);
   if (!provider || !isAiConfigured(profile)) {
     throw new Error("No AI provider configured. Pick one and add its API key in Settings → AI tailoring.");
@@ -42,6 +51,44 @@ export async function completeText(prompt: string, maxTokens: number, profile: P
   const ai = profile.ai!;
   const model = ai.model || DEFAULT_MODELS[provider];
 
+  const started = Date.now();
+  let usage = NO_USAGE;
+  let error: string | undefined;
+  try {
+    const completion = await callProvider(provider, ai, model, prompt, maxTokens);
+    usage = completion.usage;
+    return completion.text;
+  } catch (err) {
+    usage = (err as { usage?: TokenUsage }).usage ?? NO_USAGE;
+    error = (err as Error).message;
+    throw err;
+  } finally {
+    recordLlmUsage({
+      ...context,
+      ...usage,
+      at: new Date(started).toISOString(),
+      provider,
+      model,
+      totalTokens: usage.inputTokens + usage.outputTokens + (usage.reasoningTokens ?? 0),
+      durationMs: Date.now() - started,
+      ok: !error,
+      ...(error ? { error: error.slice(0, 300) } : {}),
+    });
+  }
+}
+
+/** A provider error that still carries the tokens it billed (e.g. a reply that came back empty). */
+function errorWithUsage(message: string, usage: TokenUsage): Error {
+  return Object.assign(new Error(message), { usage });
+}
+
+async function callProvider(
+  provider: AiProvider,
+  ai: NonNullable<Profile["ai"]>,
+  model: string,
+  prompt: string,
+  maxTokens: number
+): Promise<Completion> {
   switch (provider) {
     case "anthropic": {
       const client = new Anthropic({ apiKey: ai.anthropic_api_key! });
@@ -50,9 +97,10 @@ export async function completeText(prompt: string, maxTokens: number, profile: P
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       });
+      const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens };
       const block = response.content.find((b) => b.type === "text");
-      if (!block || block.type !== "text") throw new Error("Claude returned no text content.");
-      return block.text;
+      if (!block || block.type !== "text") throw errorWithUsage("Claude returned no text content.", usage);
+      return { text: block.text, usage };
     }
     case "openai":
       return openAiCompatible("https://api.openai.com/v1", ai.openai_api_key, model, prompt, maxTokens, "OpenAI");
@@ -72,7 +120,7 @@ async function openAiCompatible(
   prompt: string,
   maxTokens: number,
   label: string
-): Promise<string> {
+): Promise<Completion> {
   let res: Response;
   try {
     res = await fetch(`${baseUrl}/chat/completions`, {
@@ -88,13 +136,17 @@ async function openAiCompatible(
   } catch (err) {
     throw new Error(`Couldn't reach ${label} at ${baseUrl}: ${(err as Error).message}`);
   }
-  const data = (await readJson(res, label)) as { choices?: { message?: { content?: string } }[] };
+  const data = (await readJson(res, label)) as {
+    choices?: { message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+  const usage = { inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 };
   const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error(`${label} returned no text content.`);
-  return text;
+  if (!text) throw errorWithUsage(`${label} returned no text content.`, usage);
+  return { text, usage };
 }
 
-async function gemini(apiKey: string, model: string, prompt: string): Promise<string> {
+async function gemini(apiKey: string, model: string, prompt: string): Promise<Completion> {
   // Key goes in a header rather than the ?key= query param so it never shows up in URL logs.
   // No maxOutputTokens: 2.5+ models count "thinking" against it, which can truncate the JSON.
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -105,10 +157,19 @@ async function gemini(apiKey: string, model: string, prompt: string): Promise<st
       generationConfig: { responseMimeType: "application/json" },
     }),
   });
-  const data = (await readJson(res, "Gemini")) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const data = (await readJson(res, "Gemini")) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
+  };
+  const meta = data.usageMetadata;
+  const usage: TokenUsage = {
+    inputTokens: meta?.promptTokenCount ?? 0,
+    outputTokens: meta?.candidatesTokenCount ?? 0,
+    ...(meta?.thoughtsTokenCount ? { reasoningTokens: meta.thoughtsTokenCount } : {}),
+  };
   const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
-  if (!text) throw new Error("Gemini returned no text content.");
-  return text;
+  if (!text) throw errorWithUsage("Gemini returned no text content.", usage);
+  return { text, usage };
 }
 
 async function readJson(res: Response, label: string): Promise<unknown> {

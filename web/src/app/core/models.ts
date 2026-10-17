@@ -45,6 +45,8 @@ export interface Profile {
     gemini_api_key?: string;
   };
   schedule?: { enabled?: boolean; cron?: string };
+  /** tailor_only: "Apply" just tailors and downloads the resume, for applying manually anywhere. */
+  apply?: { tailor_only?: boolean };
 }
 
 export interface JobListing {
@@ -116,4 +118,38 @@ export interface ApplyResult {
   record?: ApplicationRecord;
   existing?: ApplicationRecord;
   error?: string;
+}
+
+export type LlmActivity = 'tailor_resume' | 'extract_resume' | 'import_profile';
+
+export interface UsageTotals {
+  calls: number;
+  failedCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface LlmUsageRecord {
+  at: string;
+  activity: LlmActivity;
+  jobId?: string;
+  provider: AiProvider;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens?: number;
+  totalTokens: number;
+  durationMs: number;
+  ok: boolean;
+  error?: string;
+}
+
+/** Mirrors UsageSummary in server/src/telemetry.ts. */
+export interface UsageSummary {
+  totals: UsageTotals;
+  byActivity: Partial<Record<LlmActivity, UsageTotals>>;
+  byModel: Record<string, UsageTotals>;
+  byJob: Record<string, UsageTotals>;
+  recent: LlmUsageRecord[];
 }

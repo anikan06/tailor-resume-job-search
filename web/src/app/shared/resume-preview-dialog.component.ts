@@ -104,7 +104,7 @@ export class ResumePreviewDialogComponent implements AfterViewInit {
   // Our own API origin, so it's safe to trust as a frame source.
   previewUrl = computed(() => this.sanitizer.bypassSecurityTrustResourceUrl(this.api.tailoredPdfUrl(this.jobId())));
   downloadUrl = computed(() =>
-    this.api.tailoredPdfDownloadUrl(this.jobId(), `Resume - ${this.company()} - ${this.title()}`)
+    this.api.tailoredPdfDownloadUrl(this.jobId(), this.api.tailoredPdfFileName(this.company(), this.title()))
   );
 
   constructor(

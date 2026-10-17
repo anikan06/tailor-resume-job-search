@@ -29,6 +29,8 @@ export class DashboardComponent implements OnInit {
   loading = signal(false);
   initialLoad = signal(true);
   jobState = new Map<string, JobUiState>();
+  /** Settings → "Tailor my resume only": apply buttons tailor and download instead of applying. */
+  tailorOnly = signal(false);
   /** Job whose tailored resume is open in the preview dialog. */
   previewJob = signal<AggregatedJob | null>(null);
 
@@ -88,6 +90,7 @@ export class DashboardComponent implements OnInit {
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
+    this.api.getProfile().subscribe((p) => this.tailorOnly.set(Boolean(p.apply?.tailor_only)));
     this.api.getJobs().subscribe({
       next: (r) => {
         this.result.set(r);
@@ -160,6 +163,36 @@ export class DashboardComponent implements OnInit {
       error: (err) => {
         this.jobState.set(job.id, { busy: false, tone: 'error', message: `Tailoring failed: ${err.error?.error ?? err.message}` });
       }
+    });
+  }
+
+  /** Tailor-only mode: tailors if needed, then downloads the PDF for the user to apply with themselves. */
+  tailorAndDownload(job: AggregatedJob): void {
+    if (job.tailored) {
+      this.download(job);
+      return;
+    }
+    this.jobState.set(job.id, { busy: true, tone: 'info', message: 'Tailoring your resume for this job…' });
+    this.api.tailorJob(job.id).subscribe({
+      next: () => {
+        job.tailored = true;
+        this.download(job);
+      },
+      error: (err) => {
+        this.jobState.set(job.id, { busy: false, tone: 'error', message: `Tailoring failed: ${err.error?.error ?? err.message}` });
+      }
+    });
+  }
+
+  private download(job: AggregatedJob): void {
+    // The server sends it as an attachment, so this downloads rather than navigates.
+    const link = document.createElement('a');
+    link.href = this.api.tailoredPdfDownloadUrl(job.id, this.api.tailoredPdfFileName(job.company, job.title));
+    link.click();
+    this.jobState.set(job.id, {
+      busy: false,
+      tone: 'success',
+      message: 'Resume downloaded — open the job posting and apply with it.'
     });
   }
 

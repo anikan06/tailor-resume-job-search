@@ -52,6 +52,10 @@ export interface Profile {
     enabled?: boolean;
     cron?: string; // e.g. "0 7 * * *" = 7am daily
   };
+  apply?: {
+    /** Only tailor and hand back the PDF - never open a browser or fill/submit a form. */
+    tailor_only?: boolean;
+  };
 }
 
 export type AiProvider = "anthropic" | "openai" | "gemini" | "ollama";

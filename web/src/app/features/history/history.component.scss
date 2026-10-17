@@ -125,3 +125,32 @@ th {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+
+.usage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.usage__heading {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.usage__models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--mono);
+}

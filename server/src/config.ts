@@ -11,6 +11,7 @@ const DEFAULT_PROFILE: Profile = {
   boards: { greenhouse: [], lever: [] },
   ai: {},
   schedule: { enabled: false, cron: "0 7 * * *" },
+  apply: { tailor_only: false },
 };
 
 function profilePath(): string {
@@ -57,6 +58,7 @@ function mergeWithDefaults(parsed: Partial<Profile>): Profile {
     boards: { ...DEFAULT_PROFILE.boards, ...parsed.boards },
     ai: { ...DEFAULT_PROFILE.ai, ...parsed.ai },
     schedule: { ...DEFAULT_PROFILE.schedule, ...parsed.schedule },
+    apply: { ...DEFAULT_PROFILE.apply, ...parsed.apply },
   };
 }
 
