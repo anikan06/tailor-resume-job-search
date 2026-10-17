@@ -12,3 +12,7 @@ web/.angular/
 .DS_Store
 server/data/app.db*
 server/data/*.migrated
+
+# AI tooling: personal overrides stay local
+.claude/settings.local.json
+.gemini/.env

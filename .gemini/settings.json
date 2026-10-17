@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "session-context",
+            "type": "command",
+            "command": "node \"$GEMINI_PROJECT_DIR/.ai/hooks/session-context.mjs\"",
+            "timeout": 10000,
+            "description": "Branch, pre-existing changes, and the orchestrator flow reminder"
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command|write_file|replace|read_file|read_many_files",
+        "hooks": [
+          {
+            "name": "guard",
+            "type": "command",
+            "command": "node \"$GEMINI_PROJECT_DIR/.ai/hooks/guard.mjs\"",
+            "timeout": 10000,
+            "description": "Block personal data access, generated-file edits and destructive shell commands"
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "stop-verify",
+            "type": "command",
+            "command": "node \"$GEMINI_PROJECT_DIR/.ai/hooks/stop-verify.mjs\"",
+            "timeout": 180000,
+            "description": "Run .ai/scripts/verify.sh on uncommitted server/web changes"
+          }
+        ]
+      }
+    ]
+  }
+}

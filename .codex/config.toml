@@ -1,0 +1,7 @@
+# Project config for Codex. Loaded only after you trust this project.
+# Custom agents live in .codex/agents/ (generated - see .ai/README.md),
+# hooks in .codex/hooks.json, skills in .agents/skills/.
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 4
