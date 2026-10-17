@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import {
+  ActivityStats,
   AiProvider,
   ApplicationRecord,
   LlmActivity,
@@ -60,6 +61,29 @@ const RECENT_LIMIT = 200;
 /** Days shown in the daily chart. */
 const CHART_DAYS = 14;
 
+/** One activity's row in the performance table. */
+interface ActivityPerf {
+  key: LlmActivity;
+  label: string;
+  totals: UsageTotals;
+  stats?: ActivityStats;
+  avgInput: number;
+  avgOutput: number;
+  avgThinking: number;
+  /** Thinking as a share of everything generated, 0-100. */
+  thinkingShare: number;
+  /** Failed calls as a share of all calls, 0-100. */
+  failureRate: number;
+}
+
+/** Tailoring spend for one job. */
+interface JobSpend {
+  jobId: string;
+  job?: ApplicationRecord;
+  totals: UsageTotals;
+  avgMs: number;
+}
+
 interface Breakdown {
   key: string;
   label: string;
@@ -101,6 +125,43 @@ export class UsageComponent implements OnInit {
 
   activities = computed(() => this.breakdown(this.usage()?.byActivity ?? {}, (k) => this.activityLabel(k as LlmActivity)));
   models = computed(() => this.breakdown(this.usage()?.byModel ?? {}, (k) => k));
+
+  performance = computed<ActivityPerf[]>(() => {
+    const u = this.usage();
+    if (!u) return [];
+    return (Object.entries(u.byActivity) as [LlmActivity, UsageTotals | undefined][])
+      .filter((e): e is [LlmActivity, UsageTotals] => Boolean(e[1]?.calls))
+      .map(([key, t]) => {
+        const thinking = t.reasoningTokens ?? 0;
+        const generated = t.outputTokens + thinking;
+        return {
+          key,
+          label: this.activityLabel(key),
+          totals: t,
+          stats: u.activityStats?.[key],
+          avgInput: t.inputTokens / t.calls,
+          avgOutput: t.outputTokens / t.calls,
+          avgThinking: thinking / t.calls,
+          thinkingShare: generated ? (thinking / generated) * 100 : 0,
+          failureRate: (t.failedCalls / t.calls) * 100
+        };
+      })
+      .sort((a, b) => b.totals.totalTokens - a.totals.totalTokens);
+  });
+
+  /** Tailoring spend per job, most expensive first. */
+  jobSpend = computed<JobSpend[]>(() =>
+    Object.entries(this.usage()?.byJob ?? {})
+      .map(([jobId, totals]) => ({
+        jobId,
+        job: this.jobs()[jobId],
+        totals,
+        avgMs: totals.calls ? (totals.durationMs ?? 0) / totals.calls : 0
+      }))
+      .sort((a, b) => b.totals.totalTokens - a.totals.totalTokens)
+  );
+
+  errors = computed(() => this.usage()?.errors ?? []);
 
   tailorAverage = computed(() => {
     const t = this.usage()?.byActivity.tailor_resume;
@@ -272,6 +333,15 @@ export class UsageComponent implements OnInit {
 
   jobFor(call: LlmUsageRecord): ApplicationRecord | undefined {
     return call.jobId ? this.jobs()[call.jobId] : undefined;
+  }
+
+  /** Whole-number percentage, or a dash when there's nothing to show. */
+  percent(n: number): string {
+    return n ? `${Math.round(n)}%` : '—';
+  }
+
+  activityList(activities: LlmActivity[]): string {
+    return activities.map((a) => this.activityLabel(a)).join(', ');
   }
 
   formatDuration(ms: number): string {

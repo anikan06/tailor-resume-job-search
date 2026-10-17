@@ -122,6 +122,11 @@ h2 {
   /* Positioned so visually-hidden text in cells is clipped with the table instead of widening the page. */
   position: relative;
   overflow-x: auto;
+
+  &--short {
+    max-height: 22rem;
+    overflow-y: auto;
+  }
 }
 
 table {
@@ -230,6 +235,37 @@ td small {
   text-align: center;
   color: var(--text-3);
   padding: 2.5rem 1rem;
+}
+
+/* ---------- Errors ---------- */
+.errors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.error {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+
+  &:first-child {
+    border-top: 0;
+  }
+}
+
+.error__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.error__message {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Providers ---------- */

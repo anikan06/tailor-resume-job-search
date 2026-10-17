@@ -86,6 +86,27 @@ export interface RateLimitStatus extends RateLimitSnapshot {
   model: string;
 }
 
+/** Latency and throughput for one activity, over its successful calls. */
+export interface ActivityStats {
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+  /** Output (visible + thinking) tokens per second of wall-clock time. */
+  outputTokensPerSecond?: number;
+  /** Prompt characters per input token, for calls that logged prompt size. */
+  promptCharsPerToken?: number;
+}
+
+/** Failed calls grouped by error message (numbers ignored, so "retry in 12s" and "retry in 30s" group together). */
+export interface ErrorGroup {
+  /** The most recent message in the group. */
+  message: string;
+  count: number;
+  lastAt: string;
+  activities: LlmActivity[];
+  providers: AiProvider[];
+}
+
 export interface UsageSummary {
   totals: UsageTotals;
   byActivity: Record<string, UsageTotals>;
@@ -96,6 +117,9 @@ export interface UsageSummary {
   rateLimits: Partial<Record<AiProvider, RateLimitStatus>>;
   /** Tailoring tokens keyed by job id. */
   byJob: Record<string, UsageTotals>;
+  activityStats: Record<string, ActivityStats>;
+  /** Most frequent first. */
+  errors: ErrorGroup[];
   /** Keyed by local calendar day (YYYY-MM-DD), oldest first. */
   byDay: Record<string, UsageTotals>;
   recent: LlmUsageRecord[];
@@ -157,6 +181,46 @@ function localDay(iso: string): string {
   return new Date(iso).toLocaleDateString("en-CA");
 }
 
+/** Nearest-rank percentile of an ascending list. */
+function percentile(sorted: number[], p: number): number {
+  return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)] : 0;
+}
+
+function activityStats(records: LlmUsageRecord[]): ActivityStats {
+  const ok = records.filter((r) => r.ok && r.durationMs > 0);
+  const durations = ok.map((r) => r.durationMs).sort((a, b) => a - b);
+  const outTokens = ok.reduce((sum, r) => sum + r.outputTokens + (r.reasoningTokens ?? 0), 0);
+  const outMs = ok.reduce((sum, r) => sum + r.durationMs, 0);
+  const sized = ok.filter((r) => r.promptChars && r.inputTokens);
+  const promptChars = sized.reduce((sum, r) => sum + r.promptChars, 0);
+  const promptTokens = sized.reduce((sum, r) => sum + r.inputTokens, 0);
+  return {
+    p50Ms: percentile(durations, 50),
+    p95Ms: percentile(durations, 95),
+    maxMs: durations.at(-1) ?? 0,
+    outputTokensPerSecond: outTokens && outMs ? outTokens / (outMs / 1000) : undefined,
+    promptCharsPerToken: promptTokens ? promptChars / promptTokens : undefined,
+  };
+}
+
+function groupErrors(records: LlmUsageRecord[]): ErrorGroup[] {
+  const groups = new Map<string, ErrorGroup>();
+  for (const r of records) {
+    if (r.ok) continue;
+    const message = r.error?.trim() || "Unknown error";
+    const key = message.replace(/\d+(\.\d+)?/g, "#");
+    const g = groups.get(key) ?? { message, count: 0, lastAt: r.at, activities: [], providers: [] };
+    g.count++;
+    // Records are in time order, so later ones replace the shown message.
+    g.message = message;
+    g.lastAt = r.at;
+    if (!g.activities.includes(r.activity)) g.activities.push(r.activity);
+    if (!g.providers.includes(r.provider)) g.providers.push(r.provider);
+    groups.set(key, g);
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt));
+}
+
 export function summarizeLlmUsage(recentLimit = 50): UsageSummary {
   const records = readLlmUsage();
   const summary: UsageSummary = {
@@ -167,6 +231,8 @@ export function summarizeLlmUsage(recentLimit = 50): UsageSummary {
     stopReasons: {},
     rateLimits: {},
     byJob: {},
+    activityStats: {},
+    errors: groupErrors(records),
     byDay: {},
     recent: [],
   };
@@ -180,6 +246,9 @@ export function summarizeLlmUsage(recentLimit = 50): UsageSummary {
     if (r.rateLimit) summary.rateLimits[r.provider] = { ...r.rateLimit, at: r.at, model: r.responseModel ?? r.model };
     if (r.jobId) add((summary.byJob[r.jobId] ??= emptyTotals()), r);
     add((summary.byDay[localDay(r.at)] ??= emptyTotals()), r);
+  }
+  for (const activity of Object.keys(summary.byActivity)) {
+    summary.activityStats[activity] = activityStats(records.filter((r) => r.activity === activity));
   }
   summary.recent = records.slice(-recentLimit).reverse();
   return summary;
